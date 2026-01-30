@@ -1,0 +1,2029 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NAI & Novel Editor</title>
+    <meta name="theme-color" content="#1a1a2e">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        :root {
+            --bg-primary: #0f0f1a;
+            --bg-secondary: #1a1a2e;
+            --bg-tertiary: #252542;
+            --text-primary: #e8e8f0;
+            --text-secondary: #a0a0b8;
+            --accent-nai: #ff6b6b;
+            --accent-nai-hover: #ff8585;
+            --accent-novel: #4ecdc4;
+            --accent-novel-hover: #6ee0d8;
+            --border-color: #3a3a5c;
+            --danger: #e74c3c;
+            --success: #2ecc71;
+            --warning: #f39c12;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #e8e8ec;
+            --text-primary: #1a1a2e;
+            --text-secondary: #5a5a7a;
+            --accent-nai: #e05555;
+            --accent-nai-hover: #c94545;
+            --accent-novel: #3db8b0;
+            --accent-novel-hover: #2da39c;
+            --border-color: #d0d0d8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            min-height: 100dvh;
+            line-height: 1.6;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
+
+        /* Header */
+        .app-header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .app-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-nai), var(--accent-novel));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: var(--border-color);
+        }
+
+        .icon-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Main Tabs */
+        .main-tabs {
+            display: flex;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .main-tab {
+            flex: 1;
+            padding: 14px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .main-tab.active {
+            color: var(--text-primary);
+        }
+
+        .main-tab[data-tab="nai"].active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--accent-nai);
+        }
+
+        .main-tab[data-tab="novel"].active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--accent-novel);
+        }
+
+        /* Panel */
+        .panel {
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .panel.active {
+            display: flex;
+        }
+
+        /* NAI Panel */
+        .nai-prompt-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .prompt-tab {
+            padding: 8px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .prompt-tab:hover {
+            border-color: var(--accent-nai);
+        }
+
+        .prompt-tab.active {
+            background: var(--accent-nai);
+            border-color: var(--accent-nai);
+            color: white;
+        }
+
+        .prompt-tab.dragging {
+            opacity: 0.5;
+        }
+
+        .prompt-tab .delete-tab {
+            display: none;
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .prompt-tab:hover .delete-tab,
+        .prompt-tab.active .delete-tab {
+            display: block;
+        }
+
+        .add-tab-btn {
+            padding: 8px 12px;
+            background: transparent;
+            border: 1px dashed var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .add-tab-btn:hover {
+            border-color: var(--accent-nai);
+            color: var(--accent-nai);
+        }
+
+        /* Prompt Buttons */
+        .prompt-buttons-section {
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .section-title {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .prompt-buttons-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .prompt-button {
+            padding: 6px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            transition: all 0.15s;
+            position: relative;
+        }
+
+        .prompt-button:hover {
+            background: var(--accent-nai);
+            border-color: var(--accent-nai);
+            color: white;
+        }
+
+        .prompt-button .btn-delete {
+            display: none;
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 16px;
+            height: 16px;
+            background: var(--danger);
+            border-radius: 50%;
+            color: white;
+            font-size: 10px;
+            line-height: 16px;
+            text-align: center;
+        }
+
+        .prompt-button:hover .btn-delete {
+            display: block;
+        }
+
+        /* Register Section */
+        .register-section {
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .register-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .register-input {
+            flex: 1;
+            padding: 10px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .register-input:focus {
+            outline: none;
+            border-color: var(--accent-nai);
+        }
+
+        .register-btn {
+            padding: 10px 16px;
+            background: var(--accent-nai);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .register-btn:hover {
+            background: var(--accent-nai-hover);
+        }
+
+        /* Editor Area */
+        .editor-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .editor-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .char-count {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .novel-count-area {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .line-count-inline {
+            font-size: 0.8rem;
+            color: var(--accent-novel);
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
+        }
+
+        .line-count-inline.warning {
+            color: var(--warning);
+        }
+
+        .line-count-inline.danger {
+            color: var(--danger);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .line-limit-setting {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .line-limit-input {
+            width: 50px;
+            padding: 2px 4px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            text-align: center;
+        }
+
+        .line-limit-input:focus {
+            outline: none;
+            border-color: var(--accent-novel);
+        }
+
+        .toolbar-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .toolbar-btn {
+            padding: 6px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+
+        .toolbar-btn:hover {
+            background: var(--border-color);
+        }
+
+        .editor-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            padding-bottom: 50vh;
+        }
+
+        .editor-textarea {
+            width: 100%;
+            min-height: 200px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 14px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            line-height: 1.8;
+            resize: none;
+            overflow: hidden;
+            font-family: 'Noto Sans JP', sans-serif;
+        }
+
+        .editor-textarea:focus {
+            outline: none;
+            border-color: var(--accent-nai);
+        }
+
+        .panel[data-panel="novel"] .editor-textarea:focus {
+            border-color: var(--accent-novel);
+        }
+
+        /* Novel Panel */
+        .novel-controls {
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .novel-selects {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .novel-select {
+            flex: 1;
+            padding: 10px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .novel-select:focus {
+            outline: none;
+            border-color: var(--accent-novel);
+        }
+
+        .novel-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .novel-btn {
+            padding: 8px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .novel-btn:hover {
+            border-color: var(--accent-novel);
+            color: var(--accent-novel);
+        }
+
+        .novel-btn.primary {
+            background: var(--accent-novel);
+            border-color: var(--accent-novel);
+            color: white;
+        }
+
+        .novel-btn.primary:hover {
+            background: var(--accent-novel-hover);
+        }
+
+        .novel-btn.danger {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        .novel-btn.danger:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        /* Series Management */
+        .series-management {
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            display: none;
+        }
+
+        .series-management.active {
+            display: block;
+        }
+
+        .series-input-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .series-input {
+            flex: 1;
+            padding: 10px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        /* Search Replace */
+        .search-replace {
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            display: none;
+        }
+
+        .search-replace.active {
+            display: block;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-novel);
+        }
+
+        .search-btn {
+            padding: 8px 14px;
+            background: var(--accent-novel);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1.5rem;
+            line-height: 1;
+        }
+
+        .modal-body {
+            padding: 16px;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            margin-bottom: 12px;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--accent-novel);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+        }
+
+        .modal-btn.cancel {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .modal-btn.confirm {
+            background: var(--accent-novel);
+            color: white;
+        }
+
+        /* History Panel */
+        .history-panel {
+            position: fixed;
+            top: 0;
+            right: -100%;
+            width: 100%;
+            max-width: 360px;
+            height: 100%;
+            background: var(--bg-secondary);
+            z-index: 150;
+            transition: right 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .history-panel.active {
+            right: 0;
+        }
+
+        .history-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .history-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .history-item {
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .history-item:hover {
+            background: var(--border-color);
+        }
+
+        .history-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .history-preview {
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .history-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 140;
+        }
+
+        .history-overlay.active {
+            display: block;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            z-index: 300;
+            transition: transform 0.3s ease;
+        }
+
+        .toast.active {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast.success {
+            border-color: var(--success);
+        }
+
+        .toast.error {
+            border-color: var(--danger);
+        }
+
+        /* Tab Name Edit Input */
+        .tab-name-input {
+            background: var(--bg-secondary);
+            border: 1px solid var(--accent-nai);
+            border-radius: 4px;
+            padding: 4px 8px;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            width: 100px;
+        }
+
+        /* Sortable placeholder */
+        .sortable-ghost {
+            opacity: 0.4;
+        }
+
+
+        /* Episode reorder */
+        .episode-reorder {
+            padding: 8px 12px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            display: none;
+        }
+
+        .episode-reorder.active {
+            display: block;
+        }
+
+        .episode-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .episode-chip {
+            padding: 6px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: grab;
+        }
+
+        .episode-chip:active {
+            cursor: grabbing;
+        }
+
+        /* Preview mode */
+        .preview-mode {
+            padding: 16px;
+            background: var(--bg-secondary);
+            line-height: 2;
+            white-space: pre-wrap;
+            font-size: 1rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .app-title {
+                font-size: 1rem;
+            }
+            
+            .novel-selects {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1 class="app-title">NAI & Novel Editor</h1>
+            <div class="header-actions">
+                <button class="icon-btn" id="historyBtn" title="履歴">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12,6 12,12 16,14"/>
+                    </svg>
+                </button>
+                <button class="icon-btn" id="themeBtn" title="テーマ切替">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/>
+                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                    </svg>
+                </button>
+                <button class="icon-btn" id="exportBtn" title="ZIP出力">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7,10 12,15 17,10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <nav class="main-tabs">
+            <div class="main-tab active" data-tab="nai">NAI Editor</div>
+            <div class="main-tab" data-tab="novel">Novel Editor</div>
+        </nav>
+
+        <!-- NAI Panel -->
+        <div class="panel active" data-panel="nai">
+            <div class="nai-prompt-tabs" id="naiPromptTabs">
+                <!-- Dynamic tabs -->
+            </div>
+
+            <div class="prompt-buttons-section">
+                <div class="section-header">
+                    <span class="section-title">プロンプトボタン</span>
+                </div>
+                <div class="prompt-buttons-grid" id="promptButtonsGrid">
+                    <!-- Dynamic buttons -->
+                </div>
+            </div>
+
+            <div class="register-section">
+                <div class="register-row">
+                    <input type="text" class="register-input" id="registerInput" placeholder="プロンプトを入力してボタン登録">
+                    <button class="register-btn" id="registerBtn">登録</button>
+                </div>
+            </div>
+
+            <div class="editor-area">
+                <div class="editor-toolbar">
+                    <span class="char-count" id="naiCharCount">0文字</span>
+                    <div class="toolbar-actions">
+                        <button class="toolbar-btn" id="naiSearchBtn">検索・置換</button>
+                        <button class="toolbar-btn" id="naiCopyBtn">コピー</button>
+                        <button class="toolbar-btn" id="naiClearBtn">クリア</button>
+                    </div>
+                </div>
+                <div class="search-replace" id="naiSearchReplace">
+                    <div class="search-row">
+                        <input type="text" class="search-input" id="naiSearchInput" placeholder="検索">
+                        <input type="text" class="search-input" id="naiReplaceInput" placeholder="置換">
+                        <button class="search-btn" id="naiReplaceBtn">置換</button>
+                    </div>
+                </div>
+                <div class="editor-wrapper">
+                    <textarea class="editor-textarea" id="naiEditor" placeholder="プロンプトを作成..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Novel Panel -->
+        <div class="panel" data-panel="novel">
+            <div class="novel-controls">
+                <div class="novel-selects">
+                    <select class="novel-select" id="seriesSelect">
+                        <option value="">-- シリーズ選択 --</option>
+                    </select>
+                    <select class="novel-select" id="episodeSelect">
+                        <option value="">-- 話数選択 --</option>
+                    </select>
+                </div>
+                <div class="novel-actions">
+                    <button class="novel-btn primary" id="newEpisodeBtn">新規作成</button>
+                    <button class="novel-btn" id="editEpisodeBtn">編集</button>
+                    <button class="novel-btn danger" id="deleteEpisodeBtn">削除</button>
+                    <button class="novel-btn" id="newSeriesBtn">シリーズ追加</button>
+                    <button class="novel-btn" id="reorderBtn">並び替え</button>
+                    <button class="novel-btn" id="previewBtn">プレビュー</button>
+                </div>
+            </div>
+
+            <div class="series-management" id="seriesManagement">
+                <div class="series-input-row">
+                    <input type="text" class="series-input" id="newSeriesInput" placeholder="新規シリーズ名">
+                    <button class="novel-btn primary" id="addSeriesBtn">追加</button>
+                    <button class="novel-btn" id="cancelSeriesBtn">キャンセル</button>
+                </div>
+            </div>
+
+            <div class="episode-reorder" id="episodeReorder">
+                <div class="section-title" style="margin-bottom: 8px;">ドラッグで並び替え</div>
+                <div class="episode-chips" id="episodeChips">
+                    <!-- Dynamic chips -->
+                </div>
+                <div style="margin-top: 10px;">
+                    <button class="novel-btn primary" id="saveReorderBtn">保存</button>
+                    <button class="novel-btn" id="cancelReorderBtn">キャンセル</button>
+                </div>
+            </div>
+
+            <div class="editor-area">
+                <div class="editor-toolbar">
+                    <div class="novel-count-area">
+                        <span class="char-count" id="novelCharCount">0文字</span>
+                        <span class="line-count-inline" id="novelLineCount">0行</span>
+                        <span class="line-limit-setting">
+                            / <input type="number" id="lineLimitInput" class="line-limit-input" value="50" min="1"> 行
+                        </span>
+                    </div>
+                    <div class="toolbar-actions">
+                        <button class="toolbar-btn" id="novelSearchBtn">検索・置換</button>
+                        <button class="toolbar-btn" id="novelCopyBtn">コピー</button>
+                    </div>
+                </div>
+                <div class="search-replace" id="novelSearchReplace">
+                    <div class="search-row">
+                        <input type="text" class="search-input" id="novelSearchInput" placeholder="検索">
+                        <input type="text" class="search-input" id="novelReplaceInput" placeholder="置換">
+                        <button class="search-btn" id="novelReplaceBtn">置換</button>
+                    </div>
+                </div>
+                <div class="editor-wrapper" id="novelEditorWrapper">
+                    <textarea class="editor-textarea" id="novelEditor" placeholder="小説を執筆..."></textarea>
+                </div>
+                <div class="preview-mode" id="previewMode" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Panel -->
+    <div class="history-overlay" id="historyOverlay"></div>
+    <div class="history-panel" id="historyPanel">
+        <div class="history-header">
+            <h3>履歴</h3>
+            <button class="modal-close" id="closeHistory">&times;</button>
+        </div>
+        <div class="history-list" id="historyList">
+            <!-- Dynamic history items -->
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">確認</h3>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        // ===== App State =====
+        const APP_STATE = {
+            currentTab: 'nai',
+            nai: {
+                tabs: [],
+                activeTabId: null,
+                buttons: {},
+                history: []
+            },
+            novel: {
+                series: {},
+                currentSeries: null,
+                currentEpisode: null,
+                history: [],
+                isEditing: false,
+                isPreview: false
+            },
+            theme: 'dark',
+            lastEditPosition: {
+                nai: 0,
+                novel: 0
+            }
+        };
+
+        // ===== Storage Keys =====
+        const STORAGE_KEYS = {
+            NAI_TABS: 'nai_editor_tabs',
+            NAI_BUTTONS: 'nai_editor_buttons',
+            NAI_HISTORY: 'nai_editor_history',
+            NOVEL_SERIES: 'novel_editor_series',
+            NOVEL_HISTORY: 'novel_editor_history',
+            THEME: 'editor_theme',
+            LAST_POSITION: 'editor_last_position'
+        };
+
+        // ===== Utility Functions =====
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast active ' + type;
+            setTimeout(() => toast.classList.remove('active'), 2500);
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+
+        // ===== Storage Functions =====
+        function saveToStorage(key, data) {
+            try {
+                localStorage.setItem(key, JSON.stringify(data));
+            } catch (e) {
+                console.error('Storage save error:', e);
+            }
+        }
+
+        function loadFromStorage(key, defaultValue = null) {
+            try {
+                const data = localStorage.getItem(key);
+                return data ? JSON.parse(data) : defaultValue;
+            } catch (e) {
+                console.error('Storage load error:', e);
+                return defaultValue;
+            }
+        }
+
+        // ===== History Management =====
+        function addToHistory(type, content, metadata = {}) {
+            const historyKey = type === 'nai' ? STORAGE_KEYS.NAI_HISTORY : STORAGE_KEYS.NOVEL_HISTORY;
+            let history = loadFromStorage(historyKey, []);
+            
+            history.unshift({
+                id: generateId(),
+                content: content,
+                metadata: metadata,
+                timestamp: new Date().toISOString()
+            });
+
+            // Keep only 100 items
+            if (history.length > 100) {
+                history = history.slice(0, 100);
+            }
+
+            saveToStorage(historyKey, history);
+            APP_STATE[type].history = history;
+        }
+
+        function renderHistoryPanel() {
+            const historyList = document.getElementById('historyList');
+            const type = APP_STATE.currentTab;
+            const history = APP_STATE[type].history;
+
+            historyList.innerHTML = history.map(item => `
+                <div class="history-item" data-id="${item.id}" data-type="${type}">
+                    <div class="history-time">${new Date(item.timestamp).toLocaleString('ja-JP')}</div>
+                    <div class="history-preview">${item.content.substring(0, 50)}${item.content.length > 50 ? '...' : ''}</div>
+                </div>
+            `).join('');
+
+            // Add click handlers
+            historyList.querySelectorAll('.history-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const id = item.dataset.id;
+                    const historyItem = history.find(h => h.id === id);
+                    if (historyItem) {
+                        if (type === 'nai') {
+                            document.getElementById('naiEditor').value = historyItem.content;
+                            autoResize(document.getElementById('naiEditor'));
+                            updateNaiCharCount();
+                        } else {
+                            document.getElementById('novelEditor').value = historyItem.content;
+                            autoResize(document.getElementById('novelEditor'));
+                            updateNovelCharCount();
+                        }
+                        closeHistoryPanel();
+                        showToast('履歴から復元しました', 'success');
+                    }
+                });
+            });
+        }
+
+        // ===== NAI Editor Functions =====
+        function initNaiEditor() {
+            const tabs = loadFromStorage(STORAGE_KEYS.NAI_TABS, []);
+            const buttons = loadFromStorage(STORAGE_KEYS.NAI_BUTTONS, {});
+            const history = loadFromStorage(STORAGE_KEYS.NAI_HISTORY, []);
+
+            if (tabs.length === 0) {
+                tabs.push({ id: generateId(), name: 'プロンプト1', content: '' });
+            }
+
+            APP_STATE.nai.tabs = tabs;
+            APP_STATE.nai.buttons = buttons;
+            APP_STATE.nai.history = history;
+            APP_STATE.nai.activeTabId = tabs[0].id;
+
+            renderNaiTabs();
+            renderPromptButtons();
+            loadActiveTabContent();
+        }
+
+        function renderNaiTabs() {
+            const container = document.getElementById('naiPromptTabs');
+            const tabs = APP_STATE.nai.tabs;
+
+            container.innerHTML = tabs.map((tab, index) => `
+                <div class="prompt-tab ${tab.id === APP_STATE.nai.activeTabId ? 'active' : ''}" 
+                     data-id="${tab.id}" draggable="true">
+                    <span class="tab-name" data-id="${tab.id}">${tab.name}</span>
+                    <svg class="delete-tab" data-id="${tab.id}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </div>
+            `).join('') + `<button class="add-tab-btn" id="addTabBtn">+ 追加</button>`;
+
+            // Add event listeners
+            container.querySelectorAll('.prompt-tab').forEach(tab => {
+                tab.addEventListener('click', (e) => {
+                    if (!e.target.classList.contains('delete-tab') && !e.target.classList.contains('tab-name-input')) {
+                        switchNaiTab(tab.dataset.id);
+                    }
+                });
+
+                // Double click to edit name
+                tab.querySelector('.tab-name').addEventListener('dblclick', (e) => {
+                    startEditTabName(e.target.dataset.id);
+                });
+
+                // Drag events for reorder
+                tab.addEventListener('dragstart', handleTabDragStart);
+                tab.addEventListener('dragover', handleTabDragOver);
+                tab.addEventListener('drop', handleTabDrop);
+                tab.addEventListener('dragend', handleTabDragEnd);
+            });
+
+            container.querySelectorAll('.delete-tab').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteNaiTab(btn.dataset.id);
+                });
+            });
+
+            document.getElementById('addTabBtn').addEventListener('click', addNaiTab);
+        }
+
+        let draggedTab = null;
+
+        function handleTabDragStart(e) {
+            draggedTab = e.target.closest('.prompt-tab');
+            draggedTab.classList.add('dragging');
+        }
+
+        function handleTabDragOver(e) {
+            e.preventDefault();
+            const tab = e.target.closest('.prompt-tab');
+            if (tab && tab !== draggedTab) {
+                tab.classList.add('sortable-ghost');
+            }
+        }
+
+        function handleTabDrop(e) {
+            e.preventDefault();
+            const dropTarget = e.target.closest('.prompt-tab');
+            if (dropTarget && dropTarget !== draggedTab) {
+                const tabs = APP_STATE.nai.tabs;
+                const draggedId = draggedTab.dataset.id;
+                const dropId = dropTarget.dataset.id;
+                
+                const draggedIndex = tabs.findIndex(t => t.id === draggedId);
+                const dropIndex = tabs.findIndex(t => t.id === dropId);
+                
+                const [removed] = tabs.splice(draggedIndex, 1);
+                tabs.splice(dropIndex, 0, removed);
+                
+                saveToStorage(STORAGE_KEYS.NAI_TABS, tabs);
+                renderNaiTabs();
+            }
+            document.querySelectorAll('.sortable-ghost').forEach(el => el.classList.remove('sortable-ghost'));
+        }
+
+        function handleTabDragEnd() {
+            if (draggedTab) {
+                draggedTab.classList.remove('dragging');
+                draggedTab = null;
+            }
+            document.querySelectorAll('.sortable-ghost').forEach(el => el.classList.remove('sortable-ghost'));
+        }
+
+        function startEditTabName(tabId) {
+            const tabName = document.querySelector(`.tab-name[data-id="${tabId}"]`);
+            const tab = APP_STATE.nai.tabs.find(t => t.id === tabId);
+            const currentName = tab.name;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'tab-name-input';
+            input.value = currentName;
+            
+            tabName.replaceWith(input);
+            input.focus();
+            input.select();
+
+            const finishEdit = () => {
+                const newName = input.value.trim() || currentName;
+                tab.name = newName;
+                saveToStorage(STORAGE_KEYS.NAI_TABS, APP_STATE.nai.tabs);
+                renderNaiTabs();
+            };
+
+            input.addEventListener('blur', finishEdit);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') finishEdit();
+                if (e.key === 'Escape') {
+                    input.value = currentName;
+                    finishEdit();
+                }
+            });
+        }
+
+        function switchNaiTab(tabId) {
+            // Save current content
+            const currentTab = APP_STATE.nai.tabs.find(t => t.id === APP_STATE.nai.activeTabId);
+            if (currentTab) {
+                currentTab.content = document.getElementById('naiEditor').value;
+                saveToStorage(STORAGE_KEYS.NAI_TABS, APP_STATE.nai.tabs);
+            }
+
+            APP_STATE.nai.activeTabId = tabId;
+            renderNaiTabs();
+            renderPromptButtons();
+            loadActiveTabContent();
+        }
+
+        function loadActiveTabContent() {
+            const tab = APP_STATE.nai.tabs.find(t => t.id === APP_STATE.nai.activeTabId);
+            if (tab) {
+                const editor = document.getElementById('naiEditor');
+                editor.value = tab.content;
+                autoResize(editor);
+                updateNaiCharCount();
+            }
+        }
+
+        function addNaiTab() {
+            const newTab = {
+                id: generateId(),
+                name: `プロンプト${APP_STATE.nai.tabs.length + 1}`,
+                content: ''
+            };
+            APP_STATE.nai.tabs.push(newTab);
+            APP_STATE.nai.buttons[newTab.id] = [];
+            saveToStorage(STORAGE_KEYS.NAI_TABS, APP_STATE.nai.tabs);
+            saveToStorage(STORAGE_KEYS.NAI_BUTTONS, APP_STATE.nai.buttons);
+            switchNaiTab(newTab.id);
+        }
+
+        function deleteNaiTab(tabId) {
+            if (APP_STATE.nai.tabs.length <= 1) {
+                showToast('最後のタブは削除できません', 'error');
+                return;
+            }
+
+            const index = APP_STATE.nai.tabs.findIndex(t => t.id === tabId);
+            APP_STATE.nai.tabs.splice(index, 1);
+            delete APP_STATE.nai.buttons[tabId];
+            
+            saveToStorage(STORAGE_KEYS.NAI_TABS, APP_STATE.nai.tabs);
+            saveToStorage(STORAGE_KEYS.NAI_BUTTONS, APP_STATE.nai.buttons);
+
+            if (APP_STATE.nai.activeTabId === tabId) {
+                switchNaiTab(APP_STATE.nai.tabs[0].id);
+            } else {
+                renderNaiTabs();
+            }
+            showToast('タブを削除しました');
+        }
+
+        function renderPromptButtons() {
+            const container = document.getElementById('promptButtonsGrid');
+            const buttons = APP_STATE.nai.buttons[APP_STATE.nai.activeTabId] || [];
+
+            container.innerHTML = buttons.map((btn, index) => `
+                <div class="prompt-button" data-index="${index}">
+                    ${btn.label}
+                    <span class="btn-delete" data-index="${index}">&times;</span>
+                </div>
+            `).join('');
+
+            container.querySelectorAll('.prompt-button').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    if (!e.target.classList.contains('btn-delete')) {
+                        insertPromptButton(parseInt(btn.dataset.index));
+                    }
+                });
+            });
+
+            container.querySelectorAll('.btn-delete').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deletePromptButton(parseInt(btn.dataset.index));
+                });
+            });
+        }
+
+        function registerPromptButton() {
+            const input = document.getElementById('registerInput');
+            const text = input.value.trim();
+            
+            if (!text) {
+                showToast('プロンプトを入力してください', 'error');
+                return;
+            }
+
+            const tabId = APP_STATE.nai.activeTabId;
+            if (!APP_STATE.nai.buttons[tabId]) {
+                APP_STATE.nai.buttons[tabId] = [];
+            }
+
+            const label = text.length > 15 ? text.substring(0, 15) + '...' : text;
+            APP_STATE.nai.buttons[tabId].push({ label, text });
+            
+            saveToStorage(STORAGE_KEYS.NAI_BUTTONS, APP_STATE.nai.buttons);
+            renderPromptButtons();
+            input.value = '';
+            showToast('ボタンを登録しました', 'success');
+        }
+
+        function insertPromptButton(index) {
+            const buttons = APP_STATE.nai.buttons[APP_STATE.nai.activeTabId];
+            if (buttons && buttons[index]) {
+                const editor = document.getElementById('naiEditor');
+                const text = buttons[index].text;
+                
+                // Insert at cursor or append
+                const start = editor.selectionStart;
+                const end = editor.selectionEnd;
+                const currentValue = editor.value;
+                
+                if (start === end && start === currentValue.length) {
+                    // At end, just append
+                    editor.value = currentValue + (currentValue && !currentValue.endsWith('\n') && !currentValue.endsWith(',') ? ', ' : '') + text;
+                } else {
+                    // Insert at cursor
+                    editor.value = currentValue.substring(0, start) + text + currentValue.substring(end);
+                    editor.selectionStart = editor.selectionEnd = start + text.length;
+                }
+                
+                autoResize(editor);
+                updateNaiCharCount();
+                saveNaiContent();
+            }
+        }
+
+        function deletePromptButton(index) {
+            const tabId = APP_STATE.nai.activeTabId;
+            APP_STATE.nai.buttons[tabId].splice(index, 1);
+            saveToStorage(STORAGE_KEYS.NAI_BUTTONS, APP_STATE.nai.buttons);
+            renderPromptButtons();
+            showToast('ボタンを削除しました');
+        }
+
+        function updateNaiCharCount() {
+            const editor = document.getElementById('naiEditor');
+            document.getElementById('naiCharCount').textContent = `${editor.value.length}文字`;
+        }
+
+        const saveNaiContent = debounce(() => {
+            const tab = APP_STATE.nai.tabs.find(t => t.id === APP_STATE.nai.activeTabId);
+            if (tab) {
+                const content = document.getElementById('naiEditor').value;
+                tab.content = content;
+                saveToStorage(STORAGE_KEYS.NAI_TABS, APP_STATE.nai.tabs);
+                addToHistory('nai', content, { tabName: tab.name });
+            }
+        }, 500);
+
+        // ===== Novel Editor Functions =====
+        function initNovelEditor() {
+            const series = loadFromStorage(STORAGE_KEYS.NOVEL_SERIES, {});
+            const history = loadFromStorage(STORAGE_KEYS.NOVEL_HISTORY, []);
+            const lineLimit = loadFromStorage('novel_line_limit', 50);
+
+            APP_STATE.novel.series = series;
+            APP_STATE.novel.history = history;
+            
+            document.getElementById('lineLimitInput').value = lineLimit;
+
+            renderSeriesSelect();
+        }
+
+        function renderSeriesSelect() {
+            const select = document.getElementById('seriesSelect');
+            const series = APP_STATE.novel.series;
+            const seriesNames = Object.keys(series).sort();
+
+            select.innerHTML = '<option value="">-- シリーズ選択 --</option>' +
+                seriesNames.map(name => `<option value="${name}">${name}</option>`).join('');
+
+            if (APP_STATE.novel.currentSeries && seriesNames.includes(APP_STATE.novel.currentSeries)) {
+                select.value = APP_STATE.novel.currentSeries;
+                renderEpisodeSelect();
+            }
+        }
+
+        function renderEpisodeSelect() {
+            const seriesName = APP_STATE.novel.currentSeries;
+            const select = document.getElementById('episodeSelect');
+
+            if (!seriesName || !APP_STATE.novel.series[seriesName]) {
+                select.innerHTML = '<option value="">-- 話数選択 --</option>';
+                return;
+            }
+
+            const episodes = APP_STATE.novel.series[seriesName];
+            select.innerHTML = '<option value="">-- 話数選択 --</option>' +
+                episodes.map((_, index) => `<option value="${index}">第${index + 1}話</option>`).join('');
+
+            if (APP_STATE.novel.currentEpisode !== null) {
+                select.value = APP_STATE.novel.currentEpisode;
+            }
+        }
+
+        function loadEpisode() {
+            const seriesName = APP_STATE.novel.currentSeries;
+            const episodeIndex = APP_STATE.novel.currentEpisode;
+
+            if (seriesName && episodeIndex !== null && APP_STATE.novel.series[seriesName]) {
+                const content = APP_STATE.novel.series[seriesName][episodeIndex] || '';
+                const editor = document.getElementById('novelEditor');
+                editor.value = content;
+                autoResize(editor);
+                updateNovelCharCount();
+                APP_STATE.novel.isEditing = true;
+            }
+        }
+
+        function saveNovelContent() {
+            const seriesName = APP_STATE.novel.currentSeries;
+            const episodeIndex = APP_STATE.novel.currentEpisode;
+            const content = document.getElementById('novelEditor').value;
+
+            if (seriesName && episodeIndex !== null) {
+                APP_STATE.novel.series[seriesName][episodeIndex] = content;
+                saveToStorage(STORAGE_KEYS.NOVEL_SERIES, APP_STATE.novel.series);
+                addToHistory('novel', content, { series: seriesName, episode: episodeIndex + 1 });
+            }
+        }
+
+        const debouncedSaveNovel = debounce(saveNovelContent, 500);
+
+        function updateNovelCharCount() {
+            const editor = document.getElementById('novelEditor');
+            const text = editor.value;
+            const lines = text ? text.split('\n').length : 0;
+            const limit = parseInt(document.getElementById('lineLimitInput').value) || 50;
+            
+            document.getElementById('novelCharCount').textContent = `${text.length}文字`;
+            
+            const lineCountEl = document.getElementById('novelLineCount');
+            lineCountEl.textContent = `${lines}行`;
+            
+            // 警告表示
+            lineCountEl.classList.remove('warning', 'danger');
+            if (lines > limit) {
+                lineCountEl.classList.add('danger');
+            } else if (lines > limit * 0.9) {
+                lineCountEl.classList.add('warning');
+            }
+        }
+
+        function createNewEpisode() {
+            showModal('新規作成', `
+                <select class="modal-input" id="targetSeriesSelect">
+                    <option value="">-- シリーズ選択 --</option>
+                    <option value="__new__">+ 新規シリーズ</option>
+                    ${Object.keys(APP_STATE.novel.series).sort().map(s => `<option value="${s}">${s}</option>`).join('')}
+                </select>
+                <input type="text" class="modal-input" id="newSeriesNameInput" placeholder="新規シリーズ名" style="display:none;">
+                <div class="modal-actions">
+                    <button class="modal-btn cancel" onclick="closeModal()">キャンセル</button>
+                    <button class="modal-btn confirm" id="confirmNewEpisode">作成</button>
+                </div>
+            `);
+
+            document.getElementById('targetSeriesSelect').addEventListener('change', (e) => {
+                document.getElementById('newSeriesNameInput').style.display = 
+                    e.target.value === '__new__' ? 'block' : 'none';
+            });
+
+            document.getElementById('confirmNewEpisode').addEventListener('click', () => {
+                let seriesName = document.getElementById('targetSeriesSelect').value;
+                
+                if (seriesName === '__new__') {
+                    seriesName = document.getElementById('newSeriesNameInput').value.trim();
+                    if (!seriesName) {
+                        showToast('シリーズ名を入力してください', 'error');
+                        return;
+                    }
+                    APP_STATE.novel.series[seriesName] = [];
+                }
+
+                if (!seriesName) {
+                    showToast('シリーズを選択してください', 'error');
+                    return;
+                }
+
+                const editor = document.getElementById('novelEditor');
+                const content = editor.value.trim();
+
+                APP_STATE.novel.series[seriesName].push(content);
+                saveToStorage(STORAGE_KEYS.NOVEL_SERIES, APP_STATE.novel.series);
+                
+                APP_STATE.novel.currentSeries = seriesName;
+                APP_STATE.novel.currentEpisode = APP_STATE.novel.series[seriesName].length - 1;
+                
+                renderSeriesSelect();
+                document.getElementById('seriesSelect').value = seriesName;
+                renderEpisodeSelect();
+                document.getElementById('episodeSelect').value = APP_STATE.novel.currentEpisode;
+                
+                APP_STATE.novel.isEditing = true;
+                closeModal();
+                showToast('新規エピソードを作成しました', 'success');
+            });
+        }
+
+        function deleteCurrentEpisode() {
+            const seriesName = APP_STATE.novel.currentSeries;
+            const episodeIndex = APP_STATE.novel.currentEpisode;
+
+            if (!seriesName || episodeIndex === null) {
+                showToast('削除するエピソードを選択してください', 'error');
+                return;
+            }
+
+            showModal('確認', `
+                <p style="margin-bottom: 16px;">「${seriesName}」の第${episodeIndex + 1}話を削除しますか？</p>
+                <div class="modal-actions">
+                    <button class="modal-btn cancel" onclick="closeModal()">キャンセル</button>
+                    <button class="modal-btn confirm" style="background: var(--danger);" id="confirmDelete">削除</button>
+                </div>
+            `);
+
+            document.getElementById('confirmDelete').addEventListener('click', () => {
+                APP_STATE.novel.series[seriesName].splice(episodeIndex, 1);
+                
+                if (APP_STATE.novel.series[seriesName].length === 0) {
+                    delete APP_STATE.novel.series[seriesName];
+                    APP_STATE.novel.currentSeries = null;
+                }
+                
+                APP_STATE.novel.currentEpisode = null;
+                saveToStorage(STORAGE_KEYS.NOVEL_SERIES, APP_STATE.novel.series);
+                
+                document.getElementById('novelEditor').value = '';
+                renderSeriesSelect();
+                renderEpisodeSelect();
+                updateNovelCharCount();
+                closeModal();
+                showToast('エピソードを削除しました');
+            });
+        }
+
+        function toggleSeriesManagement() {
+            document.getElementById('seriesManagement').classList.toggle('active');
+        }
+
+        function addNewSeries() {
+            const name = document.getElementById('newSeriesInput').value.trim();
+            if (!name) {
+                showToast('シリーズ名を入力してください', 'error');
+                return;
+            }
+
+            if (APP_STATE.novel.series[name]) {
+                showToast('同名のシリーズが既に存在します', 'error');
+                return;
+            }
+
+            APP_STATE.novel.series[name] = [];
+            saveToStorage(STORAGE_KEYS.NOVEL_SERIES, APP_STATE.novel.series);
+            
+            document.getElementById('newSeriesInput').value = '';
+            document.getElementById('seriesManagement').classList.remove('active');
+            
+            APP_STATE.novel.currentSeries = name;
+            renderSeriesSelect();
+            document.getElementById('seriesSelect').value = name;
+            
+            showToast('シリーズを追加しました', 'success');
+        }
+
+        function toggleEpisodeReorder() {
+            const reorder = document.getElementById('episodeReorder');
+            const isActive = reorder.classList.toggle('active');
+            
+            if (isActive && APP_STATE.novel.currentSeries) {
+                renderEpisodeChips();
+            }
+        }
+
+        function renderEpisodeChips() {
+            const container = document.getElementById('episodeChips');
+            const seriesName = APP_STATE.novel.currentSeries;
+            
+            if (!seriesName || !APP_STATE.novel.series[seriesName]) {
+                container.innerHTML = '<p style="color: var(--text-secondary);">シリーズを選択してください</p>';
+                return;
+            }
+
+            const episodes = APP_STATE.novel.series[seriesName];
+            container.innerHTML = episodes.map((_, index) => `
+                <div class="episode-chip" draggable="true" data-index="${index}">第${index + 1}話</div>
+            `).join('');
+
+            let draggedChip = null;
+            container.querySelectorAll('.episode-chip').forEach(chip => {
+                chip.addEventListener('dragstart', (e) => {
+                    draggedChip = chip;
+                    chip.style.opacity = '0.5';
+                });
+
+                chip.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                });
+
+                chip.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    if (draggedChip && chip !== draggedChip) {
+                        const fromIndex = parseInt(draggedChip.dataset.index);
+                        const toIndex = parseInt(chip.dataset.index);
+                        
+                        const episodes = APP_STATE.novel.series[seriesName];
+                        const [removed] = episodes.splice(fromIndex, 1);
+                        episodes.splice(toIndex, 0, removed);
+                        
+                        renderEpisodeChips();
+                    }
+                });
+
+                chip.addEventListener('dragend', () => {
+                    chip.style.opacity = '1';
+                    draggedChip = null;
+                });
+            });
+        }
+
+        function saveEpisodeReorder() {
+            saveToStorage(STORAGE_KEYS.NOVEL_SERIES, APP_STATE.novel.series);
+            document.getElementById('episodeReorder').classList.remove('active');
+            renderEpisodeSelect();
+            showToast('並び順を保存しました', 'success');
+        }
+
+        function togglePreview() {
+            APP_STATE.novel.isPreview = !APP_STATE.novel.isPreview;
+            const editor = document.getElementById('novelEditor');
+            const editorWrapper = document.getElementById('novelEditorWrapper');
+            const preview = document.getElementById('previewMode');
+            
+            if (APP_STATE.novel.isPreview) {
+                editorWrapper.style.display = 'none';
+                preview.style.display = 'block';
+                preview.textContent = editor.value;
+                document.getElementById('previewBtn').textContent = '編集';
+            } else {
+                editorWrapper.style.display = 'block';
+                preview.style.display = 'none';
+                document.getElementById('previewBtn').textContent = 'プレビュー';
+            }
+        }
+
+        // ===== Search & Replace =====
+        function toggleSearchReplace(panel) {
+            const searchReplace = document.getElementById(panel + 'SearchReplace');
+            searchReplace.classList.toggle('active');
+        }
+
+        function doSearchReplace(panel) {
+            const searchText = document.getElementById(panel + 'SearchInput').value;
+            const replaceText = document.getElementById(panel + 'ReplaceInput').value;
+            const editor = document.getElementById(panel + 'Editor');
+
+            if (!searchText) {
+                showToast('検索テキストを入力してください', 'error');
+                return;
+            }
+
+            const originalValue = editor.value;
+            const newValue = originalValue.split(searchText).join(replaceText);
+            
+            if (originalValue === newValue) {
+                showToast('該当するテキストが見つかりません', 'error');
+                return;
+            }
+
+            editor.value = newValue;
+            autoResize(editor);
+            
+            if (panel === 'nai') {
+                updateNaiCharCount();
+                saveNaiContent();
+            } else {
+                updateNovelCharCount();
+                debouncedSaveNovel();
+            }
+            
+            const count = (originalValue.match(new RegExp(searchText, 'g')) || []).length;
+            showToast(`${count}件を置換しました`, 'success');
+        }
+
+        // ===== Modal Functions =====
+        function showModal(title, bodyHtml) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').innerHTML = bodyHtml;
+            document.getElementById('modalOverlay').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('modalOverlay').classList.remove('active');
+        }
+
+        // ===== History Panel =====
+        function openHistoryPanel() {
+            renderHistoryPanel();
+            document.getElementById('historyPanel').classList.add('active');
+            document.getElementById('historyOverlay').classList.add('active');
+        }
+
+        function closeHistoryPanel() {
+            document.getElementById('historyPanel').classList.remove('active');
+            document.getElementById('historyOverlay').classList.remove('active');
+        }
+
+        // ===== Theme Toggle =====
+        function toggleTheme() {
+            APP_STATE.theme = APP_STATE.theme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', APP_STATE.theme);
+            saveToStorage(STORAGE_KEYS.THEME, APP_STATE.theme);
+        }
+
+        function loadTheme() {
+            const theme = loadFromStorage(STORAGE_KEYS.THEME, 'dark');
+            APP_STATE.theme = theme;
+            document.documentElement.setAttribute('data-theme', theme);
+        }
+
+        // ===== Export Functions =====
+        async function exportToZip() {
+            const zip = new JSZip();
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+
+            // Export NAI data
+            const naiFolder = zip.folder('NAI_Prompts');
+            APP_STATE.nai.tabs.forEach(tab => {
+                if (tab.content) {
+                    naiFolder.file(`${tab.name}.txt`, tab.content);
+                }
+            });
+
+            // Export Novel data
+            const novelFolder = zip.folder('Novels');
+            Object.entries(APP_STATE.novel.series).forEach(([seriesName, episodes]) => {
+                const seriesFolder = novelFolder.folder(seriesName);
+                episodes.forEach((content, index) => {
+                    seriesFolder.file(`第${index + 1}話.txt`, content);
+                });
+            });
+
+            const blob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `NAI_Novel_Export_${timestamp}.zip`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showToast('ZIPファイルを出力しました', 'success');
+        }
+
+        // ===== Copy Function =====
+        function copyToClipboard(editorId) {
+            const editor = document.getElementById(editorId);
+            navigator.clipboard.writeText(editor.value).then(() => {
+                showToast('コピーしました', 'success');
+            }).catch(() => {
+                showToast('コピーに失敗しました', 'error');
+            });
+        }
+
+        // ===== Main Tab Switch =====
+        function switchMainTab(tab) {
+            APP_STATE.currentTab = tab;
+            
+            document.querySelectorAll('.main-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.tab === tab);
+            });
+            
+            document.querySelectorAll('.panel').forEach(p => {
+                p.classList.toggle('active', p.dataset.panel === tab);
+            });
+        }
+
+        // ===== Event Listeners =====
+        function initEventListeners() {
+            // Main tabs
+            document.querySelectorAll('.main-tab').forEach(tab => {
+                tab.addEventListener('click', () => switchMainTab(tab.dataset.tab));
+            });
+
+            // NAI Editor
+            const naiEditor = document.getElementById('naiEditor');
+            naiEditor.addEventListener('input', () => {
+                autoResize(naiEditor);
+                updateNaiCharCount();
+                saveNaiContent();
+            });
+
+            document.getElementById('registerBtn').addEventListener('click', registerPromptButton);
+            document.getElementById('registerInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') registerPromptButton();
+            });
+
+            document.getElementById('naiSearchBtn').addEventListener('click', () => toggleSearchReplace('nai'));
+            document.getElementById('naiReplaceBtn').addEventListener('click', () => doSearchReplace('nai'));
+            document.getElementById('naiCopyBtn').addEventListener('click', () => copyToClipboard('naiEditor'));
+            document.getElementById('naiClearBtn').addEventListener('click', () => {
+                if (confirm('プロンプトをクリアしますか？')) {
+                    document.getElementById('naiEditor').value = '';
+                    autoResize(document.getElementById('naiEditor'));
+                    updateNaiCharCount();
+                    saveNaiContent();
+                }
+            });
+
+            // Novel Editor
+            const novelEditor = document.getElementById('novelEditor');
+            novelEditor.addEventListener('input', () => {
+                autoResize(novelEditor);
+                updateNovelCharCount();
+                if (APP_STATE.novel.isEditing) {
+                    debouncedSaveNovel();
+                }
+            });
+
+            document.getElementById('seriesSelect').addEventListener('change', (e) => {
+                APP_STATE.novel.currentSeries = e.target.value || null;
+                APP_STATE.novel.currentEpisode = null;
+                APP_STATE.novel.isEditing = false;
+                document.getElementById('novelEditor').value = '';
+                renderEpisodeSelect();
+                updateNovelCharCount();
+            });
+
+            document.getElementById('episodeSelect').addEventListener('change', (e) => {
+                APP_STATE.novel.currentEpisode = e.target.value !== '' ? parseInt(e.target.value) : null;
+                if (APP_STATE.novel.currentEpisode !== null) {
+                    loadEpisode();
+                }
+            });
+
+            document.getElementById('newEpisodeBtn').addEventListener('click', createNewEpisode);
+            document.getElementById('editEpisodeBtn').addEventListener('click', () => {
+                if (APP_STATE.novel.currentSeries && APP_STATE.novel.currentEpisode !== null) {
+                    loadEpisode();
+                    showToast('編集モードに入りました');
+                } else {
+                    showToast('エピソードを選択してください', 'error');
+                }
+            });
+            document.getElementById('deleteEpisodeBtn').addEventListener('click', deleteCurrentEpisode);
+            document.getElementById('newSeriesBtn').addEventListener('click', toggleSeriesManagement);
+            document.getElementById('addSeriesBtn').addEventListener('click', addNewSeries);
+            document.getElementById('cancelSeriesBtn').addEventListener('click', () => {
+                document.getElementById('seriesManagement').classList.remove('active');
+            });
+            document.getElementById('reorderBtn').addEventListener('click', toggleEpisodeReorder);
+            document.getElementById('saveReorderBtn').addEventListener('click', saveEpisodeReorder);
+            document.getElementById('cancelReorderBtn').addEventListener('click', () => {
+                document.getElementById('episodeReorder').classList.remove('active');
+            });
+            document.getElementById('lineLimitInput').addEventListener('change', () => {
+                const limit = parseInt(document.getElementById('lineLimitInput').value) || 50;
+                saveToStorage('novel_line_limit', limit);
+                updateNovelCharCount();
+            });
+            document.getElementById('previewBtn').addEventListener('click', togglePreview);
+
+            document.getElementById('novelSearchBtn').addEventListener('click', () => toggleSearchReplace('novel'));
+            document.getElementById('novelReplaceBtn').addEventListener('click', () => doSearchReplace('novel'));
+            document.getElementById('novelCopyBtn').addEventListener('click', () => copyToClipboard('novelEditor'));
+
+            // Header buttons
+            document.getElementById('historyBtn').addEventListener('click', openHistoryPanel);
+            document.getElementById('closeHistory').addEventListener('click', closeHistoryPanel);
+            document.getElementById('historyOverlay').addEventListener('click', closeHistoryPanel);
+            document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+            document.getElementById('exportBtn').addEventListener('click', exportToZip);
+
+            // Modal
+            document.getElementById('modalClose').addEventListener('click', closeModal);
+            document.getElementById('modalOverlay').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('modalOverlay')) closeModal();
+            });
+        }
+
+        // ===== Initialize =====
+        function init() {
+            loadTheme();
+            initNaiEditor();
+            initNovelEditor();
+            initEventListeners();
+
+            // Initial auto-resize
+            autoResize(document.getElementById('naiEditor'));
+            autoResize(document.getElementById('novelEditor'));
+        }
+
+        // Start the app
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
