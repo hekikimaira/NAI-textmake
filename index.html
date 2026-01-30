@@ -276,25 +276,6 @@
             color: white;
         }
 
-        .prompt-button .btn-delete {
-            display: none;
-            position: absolute;
-            top: -6px;
-            right: -6px;
-            width: 16px;
-            height: 16px;
-            background: var(--danger);
-            border-radius: 50%;
-            color: white;
-            font-size: 10px;
-            line-height: 16px;
-            text-align: center;
-        }
-
-        .prompt-button:hover .btn-delete {
-            display: block;
-        }
-
         /* Register Section */
         .register-section {
             padding: 12px;
@@ -320,6 +301,31 @@
         .register-input:focus {
             outline: none;
             border-color: var(--accent-nai);
+        }
+
+        .register-name {
+            max-width: 120px;
+            flex: 0 0 auto;
+        }
+
+        .delete-mode-btn {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+        }
+
+        .delete-mode-btn.active {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: white;
+        }
+
+        .prompt-button.delete-mode {
+            border-color: var(--danger);
+        }
+
+        .prompt-button.delete-mode:hover {
+            background: var(--danger);
+            border-color: var(--danger);
         }
 
         .register-btn {
@@ -912,6 +918,7 @@
             <div class="prompt-buttons-section">
                 <div class="section-header">
                     <span class="section-title">プロンプトボタン</span>
+                    <button class="toolbar-btn delete-mode-btn" id="deleteModeBtnNai">削除モード</button>
                 </div>
                 <div class="prompt-buttons-grid" id="promptButtonsGrid">
                     <!-- Dynamic buttons -->
@@ -920,7 +927,8 @@
 
             <div class="register-section">
                 <div class="register-row">
-                    <input type="text" class="register-input" id="registerInput" placeholder="プロンプトを入力してボタン登録">
+                    <input type="text" class="register-input register-name" id="registerNameInput" placeholder="ボタン名（空欄可）">
+                    <input type="text" class="register-input" id="registerInput" placeholder="プロンプト">
                     <button class="register-btn" id="registerBtn">登録</button>
                 </div>
             </div>
@@ -1053,7 +1061,8 @@
                 tabs: [],
                 activeTabId: null,
                 buttons: {},
-                history: []
+                history: [],
+                deleteMode: false
             },
             novel: {
                 series: {},
@@ -1384,33 +1393,38 @@
         function renderPromptButtons() {
             const container = document.getElementById('promptButtonsGrid');
             const buttons = APP_STATE.nai.buttons[APP_STATE.nai.activeTabId] || [];
+            const isDeleteMode = APP_STATE.nai.deleteMode;
 
             container.innerHTML = buttons.map((btn, index) => `
-                <div class="prompt-button" data-index="${index}">
+                <div class="prompt-button ${isDeleteMode ? 'delete-mode' : ''}" data-index="${index}">
                     ${btn.label}
-                    <span class="btn-delete" data-index="${index}">&times;</span>
                 </div>
             `).join('');
 
             container.querySelectorAll('.prompt-button').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    if (!e.target.classList.contains('btn-delete')) {
-                        insertPromptButton(parseInt(btn.dataset.index));
+                btn.addEventListener('click', () => {
+                    const index = parseInt(btn.dataset.index);
+                    if (APP_STATE.nai.deleteMode) {
+                        deletePromptButton(index);
+                    } else {
+                        insertPromptButton(index);
                     }
-                });
-            });
-
-            container.querySelectorAll('.btn-delete').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    deletePromptButton(parseInt(btn.dataset.index));
                 });
             });
         }
 
+        function toggleDeleteMode() {
+            APP_STATE.nai.deleteMode = !APP_STATE.nai.deleteMode;
+            const btn = document.getElementById('deleteModeBtnNai');
+            btn.classList.toggle('active', APP_STATE.nai.deleteMode);
+            renderPromptButtons();
+        }
+
         function registerPromptButton() {
+            const nameInput = document.getElementById('registerNameInput');
             const input = document.getElementById('registerInput');
             const text = input.value.trim();
+            const name = nameInput.value.trim();
             
             if (!text) {
                 showToast('プロンプトを入力してください', 'error');
@@ -1422,12 +1436,14 @@
                 APP_STATE.nai.buttons[tabId] = [];
             }
 
-            const label = text.length > 15 ? text.substring(0, 15) + '...' : text;
+            // ボタン名が空ならプロンプト全文を使用
+            const label = name || text;
             APP_STATE.nai.buttons[tabId].push({ label, text });
             
             saveToStorage(STORAGE_KEYS.NAI_BUTTONS, APP_STATE.nai.buttons);
             renderPromptButtons();
             input.value = '';
+            nameInput.value = '';
             showToast('ボタンを登録しました', 'success');
         }
 
@@ -1926,6 +1942,10 @@
             document.getElementById('registerInput').addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') registerPromptButton();
             });
+            document.getElementById('registerNameInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') document.getElementById('registerInput').focus();
+            });
+            document.getElementById('deleteModeBtnNai').addEventListener('click', toggleDeleteMode);
 
             document.getElementById('naiSearchBtn').addEventListener('click', () => toggleSearchReplace('nai'));
             document.getElementById('naiReplaceBtn').addEventListener('click', () => doSearchReplace('nai'));
