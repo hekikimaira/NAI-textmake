@@ -208,8 +208,7 @@
             cursor: pointer;
         }
 
-        .prompt-tab:hover .delete-tab,
-        .prompt-tab.active .delete-tab {
+        .prompt-tab.delete-mode .delete-tab {
             display: block;
         }
 
@@ -1219,9 +1218,10 @@
         function renderNaiTabs() {
             const container = $('naiPromptTabs');
             const tabs = APP_STATE.nai.tabs;
+            const isDel = APP_STATE.nai.deleteMode;
 
             container.innerHTML = tabs.map((tab, index) => `
-                <div class="prompt-tab ${tab.id === APP_STATE.nai.activeTabId ? 'active' : ''}"
+                <div class="prompt-tab ${tab.id === APP_STATE.nai.activeTabId ? 'active' : ''} ${isDel ? 'delete-mode' : ''}"
                      data-id="${tab.id}" draggable="true">
                     <span class="tab-name" data-id="${tab.id}">${tab.name}</span>
                     <svg class="delete-tab" data-id="${tab.id}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1239,10 +1239,24 @@
                     }
                 });
 
-                // Double click to edit name
-                tab.querySelector('.tab-name').addEventListener('dblclick', (e) => {
-                    startEditTabName(e.target.dataset.id);
-                });
+                // Long press to edit name
+                let pressTimer = null;
+                const startPress = (e) => {
+                    pressTimer = setTimeout(() => {
+                        pressTimer = 'fired';
+                        startEditTabName(tab.dataset.id);
+                    }, 500);
+                };
+                const cancelPress = () => {
+                    if (pressTimer && pressTimer !== 'fired') clearTimeout(pressTimer);
+                    pressTimer = null;
+                };
+                tab.addEventListener('touchstart', startPress, { passive: true });
+                tab.addEventListener('touchend', cancelPress);
+                tab.addEventListener('touchmove', cancelPress);
+                tab.addEventListener('mousedown', startPress);
+                tab.addEventListener('mouseup', cancelPress);
+                tab.addEventListener('mouseleave', cancelPress);
 
                 // Drag events for reorder
                 tab.addEventListener('dragstart', handleTabDragStart);
