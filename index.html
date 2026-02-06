@@ -1063,12 +1063,16 @@
     <!-- Toast -->
     <div class="toast" id="toast"></div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
-        // JSZip CDN fallback check
-        if (typeof JSZip === 'undefined') {
-            console.warn('JSZip not loaded (CDN blocked). ZIP import/export disabled.');
-        }
+        // JSZip will be loaded async, check availability at use time
+        (function() {
+            var s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+            s.onerror = function() { console.warn('JSZip CDN blocked. ZIP import/export disabled in this environment.'); };
+            document.head.appendChild(s);
+        })();
+    </script>
+    <script>
         // ===== App State =====
         const APP_STATE = {
             currentTab: 'nai',
