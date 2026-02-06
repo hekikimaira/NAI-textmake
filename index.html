@@ -43,11 +43,6 @@
             box-sizing: border-box;
         }
 
-        input:focus, select:focus, textarea:focus { outline: none; }
-        .register-input:focus, .tab-name-input:focus { border-color: var(--accent-nai); }
-        .novel-select:focus, .search-input:focus, .modal-input:focus,
-        .line-limit-input:focus, .series-input:focus { border-color: var(--accent-novel); }
-
         body {
             font-family: 'Noto Sans JP', sans-serif;
             background: var(--bg-primary);
@@ -136,17 +131,27 @@
             color: var(--text-primary);
         }
 
-        .main-tab.active::after {
+        .main-tab[data-tab="nai"].active::after {
             content: '';
             position: absolute;
             bottom: 0;
             left: 0;
             right: 0;
             height: 3px;
+            background: var(--accent-nai);
             border-radius: 3px 3px 0 0;
         }
-        .main-tab[data-tab="nai"].active::after { background: var(--accent-nai); }
-        .main-tab[data-tab="novel"].active::after { background: var(--accent-novel); }
+
+        .main-tab[data-tab="novel"].active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--accent-novel);
+            border-radius: 3px 3px 0 0;
+        }
 
         /* Panel */
         .panel {
@@ -264,6 +269,7 @@
             font-size: 0.8rem;
             color: var(--text-primary);
             transition: all 0.15s;
+            position: relative;
         }
 
         .prompt-button:hover {
@@ -292,6 +298,11 @@
             border-radius: 6px;
             color: var(--text-primary);
             font-size: 0.9rem;
+        }
+
+        .register-input:focus {
+            outline: none;
+            border-color: var(--accent-nai);
         }
 
         .register-name {
@@ -405,6 +416,11 @@
             text-align: center;
         }
 
+        .line-limit-input:focus {
+            outline: none;
+            border-color: var(--accent-novel);
+        }
+
         .toolbar-actions {
             display: flex;
             gap: 6px;
@@ -479,6 +495,11 @@
             color: var(--text-primary);
             font-size: 0.9rem;
             cursor: pointer;
+        }
+
+        .novel-select:focus {
+            outline: none;
+            border-color: var(--accent-novel);
         }
 
         .novel-actions {
@@ -578,6 +599,11 @@
             font-size: 0.85rem;
         }
 
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-novel);
+        }
+
         .search-btn {
             padding: 8px 14px;
             background: var(--accent-novel);
@@ -653,6 +679,11 @@
             color: var(--text-primary);
             font-size: 1rem;
             margin-bottom: 12px;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--accent-novel);
         }
 
         .modal-actions {
@@ -908,6 +939,7 @@
         <!-- NAI Panel -->
         <div class="panel active" data-panel="nai">
             <div class="nai-prompt-tabs" id="naiPromptTabs">
+                <!-- Dynamic tabs -->
             </div>
 
             <div class="prompt-buttons-section">
@@ -916,6 +948,7 @@
                     <button class="toolbar-btn delete-mode-btn" id="deleteModeBtnNai">削除モード</button>
                 </div>
                 <div class="prompt-buttons-grid" id="promptButtonsGrid">
+                    <!-- Dynamic buttons -->
                 </div>
             </div>
 
@@ -981,6 +1014,7 @@
             <div class="episode-reorder" id="episodeReorder">
                 <div class="section-title" style="margin-bottom: 8px;">ドラッグで並び替え</div>
                 <div class="episode-chips" id="episodeChips">
+                    <!-- Dynamic chips -->
                 </div>
                 <div style="margin-top: 10px;">
                     <button class="novel-btn primary" id="saveReorderBtn">保存</button>
@@ -1037,6 +1071,7 @@
                 <button class="modal-close" id="modalClose">&times;</button>
             </div>
             <div class="modal-body" id="modalBody">
+                <!-- Dynamic content -->
             </div>
         </div>
     </div>
@@ -1055,8 +1090,6 @@
             <div class="io-menu-item" id="importAll">↑ ZIPインポート</div>
         </div>
     </div>
-
-    <!-- Hidden file input for import -->
     <input type="file" class="hidden-input" id="importFileInput" accept=".zip">
 
     <!-- Toast -->
@@ -1095,14 +1128,12 @@
         };
 
         // ===== Utility Functions =====
-        const $ = id => document.getElementById(id);
-
         function generateId() {
             return Date.now().toString(36) + Math.random().toString(36).substr(2);
         }
 
         function showToast(message, type = 'info') {
-            const toast = $('toast');
+            const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.className = 'toast active ' + type;
             setTimeout(() => toast.classList.remove('active'), 2500);
@@ -1166,32 +1197,31 @@
         }
 
         function renderHistoryPanel() {
-            const historyList = $('historyList');
+            const historyList = document.getElementById('historyList');
             const type = APP_STATE.currentTab;
             const history = APP_STATE[type].history;
-
-            historyList.innerHTML = history.map(item => `
-                <div class="history-item" data-id="${item.id}" data-type="${type}">
-                    <div class="history-time">${new Date(item.timestamp).toLocaleString('ja-JP')}</div>
-                    <div class="history-preview">${item.content.substring(0, 50)}${item.content.length > 50 ? '...' : ''}</div>
-                </div>
-            `).join('');
-
-            // Add click handlers
-            historyList.querySelectorAll('.history-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const id = item.dataset.id;
-                    const historyItem = history.find(h => h.id === id);
-                    if (historyItem) {
-                        const edId = type === 'nai' ? 'naiEditor' : 'novelEditor';
-                        const ed = $(edId);
-                        ed.value = historyItem.content;
-                        autoResize(ed);
-                        type === 'nai' ? updateNaiCharCount() : updateNovelCharCount();
-                        closeHistoryPanel();
-                        showToast('履歴から復元しました', 'success');
-                    }
+            historyList.innerHTML = '';
+            history.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                const timeDiv = document.createElement('div');
+                timeDiv.className = 'history-time';
+                timeDiv.textContent = new Date(item.timestamp).toLocaleString('ja-JP');
+                const previewDiv = document.createElement('div');
+                previewDiv.className = 'history-preview';
+                previewDiv.textContent = item.content.substring(0, 50) + (item.content.length > 50 ? '...' : '');
+                div.appendChild(timeDiv);
+                div.appendChild(previewDiv);
+                div.addEventListener('click', () => {
+                    const edId = type === 'nai' ? 'naiEditor' : 'novelEditor';
+                    const ed = document.getElementById(edId);
+                    ed.value = item.content;
+                    autoResize(ed);
+                    type === 'nai' ? updateNaiCharCount() : updateNovelCharCount();
+                    closeHistoryPanel();
+                    showToast('履歴から復元しました', 'success');
                 });
+                historyList.appendChild(div);
             });
         }
 
@@ -1212,15 +1242,21 @@
 
             renderNaiTabs();
             renderPromptButtons();
-            loadActiveTabContent();
+            // Load saved content into editor on init
+            const savedTab = APP_STATE.nai.tabs.find(t => t.id === APP_STATE.nai.activeTabId);
+            if (savedTab && savedTab.content) {
+                document.getElementById('naiEditor').value = savedTab.content;
+                autoResize(document.getElementById('naiEditor'));
+                updateNaiCharCount();
+            }
         }
 
         function renderNaiTabs() {
-            const container = $('naiPromptTabs');
+            const container = document.getElementById('naiPromptTabs');
             const tabs = APP_STATE.nai.tabs;
             const isDel = APP_STATE.nai.deleteMode;
 
-            container.innerHTML = tabs.map((tab, index) => `
+            container.innerHTML = tabs.map((tab) => `
                 <div class="prompt-tab ${tab.id === APP_STATE.nai.activeTabId ? 'active' : ''} ${isDel ? 'delete-mode' : ''}"
                      data-id="${tab.id}" draggable="true">
                     <span class="tab-name" data-id="${tab.id}">${tab.name}</span>
@@ -1231,7 +1267,6 @@
                 </div>
             `).join('') + `<button class="add-tab-btn" id="addTabBtn">+ 追加</button>`;
 
-            // Add event listeners
             container.querySelectorAll('.prompt-tab').forEach(tab => {
                 tab.addEventListener('click', (e) => {
                     if (!e.target.classList.contains('delete-tab') && !e.target.classList.contains('tab-name-input')) {
@@ -1241,16 +1276,8 @@
 
                 // Long press to edit name
                 let pressTimer = null;
-                const startPress = (e) => {
-                    pressTimer = setTimeout(() => {
-                        pressTimer = 'fired';
-                        startEditTabName(tab.dataset.id);
-                    }, 500);
-                };
-                const cancelPress = () => {
-                    if (pressTimer && pressTimer !== 'fired') clearTimeout(pressTimer);
-                    pressTimer = null;
-                };
+                const startPress = () => { pressTimer = setTimeout(() => { pressTimer = 'fired'; startEditTabName(tab.dataset.id); }, 500); };
+                const cancelPress = () => { if (pressTimer && pressTimer !== 'fired') clearTimeout(pressTimer); pressTimer = null; };
                 tab.addEventListener('touchstart', startPress, { passive: true });
                 tab.addEventListener('touchend', cancelPress);
                 tab.addEventListener('touchmove', cancelPress);
@@ -1258,7 +1285,6 @@
                 tab.addEventListener('mouseup', cancelPress);
                 tab.addEventListener('mouseleave', cancelPress);
 
-                // Drag events for reorder
                 tab.addEventListener('dragstart', handleTabDragStart);
                 tab.addEventListener('dragover', handleTabDragOver);
                 tab.addEventListener('drop', handleTabDrop);
@@ -1272,7 +1298,7 @@
                 });
             });
 
-            $('addTabBtn').addEventListener('click', addNaiTab);
+            document.getElementById('addTabBtn').addEventListener('click', addNaiTab);
         }
 
         let draggedTab = null;
@@ -1307,19 +1333,15 @@
                 saveToStorage(STORAGE_KEYS.NAI_TABS, tabs);
                 renderNaiTabs();
             }
-            clearDragState();
+            document.querySelectorAll('.sortable-ghost').forEach(el => el.classList.remove('sortable-ghost'));
         }
 
-        function clearDragState() {
+        function handleTabDragEnd() {
             if (draggedTab) {
                 draggedTab.classList.remove('dragging');
                 draggedTab = null;
             }
             document.querySelectorAll('.sortable-ghost').forEach(el => el.classList.remove('sortable-ghost'));
-        }
-
-        function handleTabDragEnd() {
-            clearDragState();
         }
 
         function startEditTabName(tabId) {
@@ -1336,7 +1358,10 @@
             input.focus();
             input.select();
 
+            let finished = false;
             const finishEdit = () => {
+                if (finished) return;
+                finished = true;
                 const newName = input.value.trim() || currentName;
                 tab.name = newName;
                 saveToStorage(STORAGE_KEYS.NAI_TABS, APP_STATE.nai.tabs);
@@ -1354,27 +1379,9 @@
         }
 
         function switchNaiTab(tabId) {
-            // Save current content
-            const currentTab = APP_STATE.nai.tabs.find(t => t.id === APP_STATE.nai.activeTabId);
-            if (currentTab) {
-                currentTab.content = $('naiEditor').value;
-                saveToStorage(STORAGE_KEYS.NAI_TABS, APP_STATE.nai.tabs);
-            }
-
             APP_STATE.nai.activeTabId = tabId;
             renderNaiTabs();
             renderPromptButtons();
-            loadActiveTabContent();
-        }
-
-        function loadActiveTabContent() {
-            const tab = APP_STATE.nai.tabs.find(t => t.id === APP_STATE.nai.activeTabId);
-            if (tab) {
-                const editor = $('naiEditor');
-                editor.value = tab.content;
-                autoResize(editor);
-                updateNaiCharCount();
-            }
         }
 
         function addNaiTab() {
@@ -1412,7 +1419,7 @@
         }
 
         function renderPromptButtons() {
-            const container = $('promptButtonsGrid');
+            const container = document.getElementById('promptButtonsGrid');
             const buttons = APP_STATE.nai.buttons[APP_STATE.nai.activeTabId] || [];
             const isDeleteMode = APP_STATE.nai.deleteMode;
 
@@ -1436,14 +1443,14 @@
 
         function toggleDeleteMode() {
             APP_STATE.nai.deleteMode = !APP_STATE.nai.deleteMode;
-            const btn = $('deleteModeBtnNai');
-            btn.classList.toggle('active', APP_STATE.nai.deleteMode);
+            document.getElementById('deleteModeBtnNai').classList.toggle('active', APP_STATE.nai.deleteMode);
+            renderNaiTabs();
             renderPromptButtons();
         }
 
         function registerPromptButton() {
-            const nameInput = $('registerNameInput');
-            const input = $('registerInput');
+            const nameInput = document.getElementById('registerNameInput');
+            const input = document.getElementById('registerInput');
             const text = input.value.trim();
             const name = nameInput.value.trim();
 
@@ -1471,7 +1478,7 @@
         function insertPromptButton(index) {
             const buttons = APP_STATE.nai.buttons[APP_STATE.nai.activeTabId];
             if (buttons && buttons[index]) {
-                const editor = $('naiEditor');
+                const editor = document.getElementById('naiEditor');
                 const text = buttons[index].text;
 
                 // Insert at cursor or append
@@ -1503,14 +1510,14 @@
         }
 
         function updateNaiCharCount() {
-            const editor = $('naiEditor');
-            $('naiCharCount').textContent = `${editor.value.length}文字`;
+            const editor = document.getElementById('naiEditor');
+            document.getElementById('naiCharCount').textContent = `${editor.value.length}文字`;
         }
 
         const saveNaiContent = debounce(() => {
             const tab = APP_STATE.nai.tabs.find(t => t.id === APP_STATE.nai.activeTabId);
             if (tab) {
-                const content = $('naiEditor').value;
+                const content = document.getElementById('naiEditor').value;
                 tab.content = content;
                 saveToStorage(STORAGE_KEYS.NAI_TABS, APP_STATE.nai.tabs);
                 addToHistory('nai', content, { tabName: tab.name });
@@ -1526,13 +1533,13 @@
             APP_STATE.novel.series = series;
             APP_STATE.novel.history = history;
 
-            $('lineLimitInput').value = lineLimit;
+            document.getElementById('lineLimitInput').value = lineLimit;
 
             renderSeriesSelect();
         }
 
         function renderSeriesSelect() {
-            const select = $('seriesSelect');
+            const select = document.getElementById('seriesSelect');
             const series = APP_STATE.novel.series;
             const seriesNames = Object.keys(series).sort();
 
@@ -1547,7 +1554,7 @@
 
         function renderEpisodeSelect() {
             const seriesName = APP_STATE.novel.currentSeries;
-            const select = $('episodeSelect');
+            const select = document.getElementById('episodeSelect');
 
             if (!seriesName || !APP_STATE.novel.series[seriesName]) {
                 select.innerHTML = '<option value="">-- 話数選択 --</option>';
@@ -1569,7 +1576,7 @@
 
             if (seriesName && episodeIndex !== null && APP_STATE.novel.series[seriesName]) {
                 const content = APP_STATE.novel.series[seriesName][episodeIndex] || '';
-                const editor = $('novelEditor');
+                const editor = document.getElementById('novelEditor');
                 editor.value = content;
                 autoResize(editor);
                 updateNovelCharCount();
@@ -1580,7 +1587,7 @@
         function saveNovelContent() {
             const seriesName = APP_STATE.novel.currentSeries;
             const episodeIndex = APP_STATE.novel.currentEpisode;
-            const content = $('novelEditor').value;
+            const content = document.getElementById('novelEditor').value;
 
             if (seriesName && episodeIndex !== null) {
                 APP_STATE.novel.series[seriesName][episodeIndex] = content;
@@ -1592,14 +1599,14 @@
         const debouncedSaveNovel = debounce(saveNovelContent, 500);
 
         function updateNovelCharCount() {
-            const editor = $('novelEditor');
+            const editor = document.getElementById('novelEditor');
             const text = editor.value;
             const lines = text ? text.split('\n').length : 0;
-            const limit = parseInt($('lineLimitInput').value) || 50;
+            const limit = parseInt(document.getElementById('lineLimitInput').value) || 50;
 
-            $('novelCharCount').textContent = `${text.length}文字`;
+            document.getElementById('novelCharCount').textContent = `${text.length}文字`;
 
-            const lineCountEl = $('novelLineCount');
+            const lineCountEl = document.getElementById('novelLineCount');
             lineCountEl.textContent = `${lines}行`;
 
             // 警告表示
@@ -1625,16 +1632,16 @@
                 </div>
             `);
 
-            $('targetSeriesSelect').addEventListener('change', (e) => {
-                $('newSeriesNameInput').style.display =
+            document.getElementById('targetSeriesSelect').addEventListener('change', (e) => {
+                document.getElementById('newSeriesNameInput').style.display =
                     e.target.value === '__new__' ? 'block' : 'none';
             });
 
-            $('confirmNewEpisode').addEventListener('click', () => {
-                let seriesName = $('targetSeriesSelect').value;
+            document.getElementById('confirmNewEpisode').addEventListener('click', () => {
+                let seriesName = document.getElementById('targetSeriesSelect').value;
 
                 if (seriesName === '__new__') {
-                    seriesName = $('newSeriesNameInput').value.trim();
+                    seriesName = document.getElementById('newSeriesNameInput').value.trim();
                     if (!seriesName) {
                         showToast('シリーズ名を入力してください', 'error');
                         return;
@@ -1647,7 +1654,7 @@
                     return;
                 }
 
-                const editor = $('novelEditor');
+                const editor = document.getElementById('novelEditor');
                 const content = editor.value.trim();
 
                 APP_STATE.novel.series[seriesName].push(content);
@@ -1657,9 +1664,9 @@
                 APP_STATE.novel.currentEpisode = APP_STATE.novel.series[seriesName].length - 1;
 
                 renderSeriesSelect();
-                $('seriesSelect').value = seriesName;
+                document.getElementById('seriesSelect').value = seriesName;
                 renderEpisodeSelect();
-                $('episodeSelect').value = APP_STATE.novel.currentEpisode;
+                document.getElementById('episodeSelect').value = APP_STATE.novel.currentEpisode;
 
                 APP_STATE.novel.isEditing = true;
                 closeModal();
@@ -1684,7 +1691,7 @@
                 </div>
             `);
 
-            $('confirmDelete').addEventListener('click', () => {
+            document.getElementById('confirmDelete').addEventListener('click', () => {
                 APP_STATE.novel.series[seriesName].splice(episodeIndex, 1);
 
                 if (APP_STATE.novel.series[seriesName].length === 0) {
@@ -1695,7 +1702,7 @@
                 APP_STATE.novel.currentEpisode = null;
                 saveToStorage(STORAGE_KEYS.NOVEL_SERIES, APP_STATE.novel.series);
 
-                $('novelEditor').value = '';
+                document.getElementById('novelEditor').value = '';
                 renderSeriesSelect();
                 renderEpisodeSelect();
                 updateNovelCharCount();
@@ -1705,11 +1712,11 @@
         }
 
         function toggleSeriesManagement() {
-            $('seriesManagement').classList.toggle('active');
+            document.getElementById('seriesManagement').classList.toggle('active');
         }
 
         function addNewSeries() {
-            const name = $('newSeriesInput').value.trim();
+            const name = document.getElementById('newSeriesInput').value.trim();
             if (!name) {
                 showToast('シリーズ名を入力してください', 'error');
                 return;
@@ -1723,18 +1730,18 @@
             APP_STATE.novel.series[name] = [];
             saveToStorage(STORAGE_KEYS.NOVEL_SERIES, APP_STATE.novel.series);
 
-            $('newSeriesInput').value = '';
-            $('seriesManagement').classList.remove('active');
+            document.getElementById('newSeriesInput').value = '';
+            document.getElementById('seriesManagement').classList.remove('active');
 
             APP_STATE.novel.currentSeries = name;
             renderSeriesSelect();
-            $('seriesSelect').value = name;
+            document.getElementById('seriesSelect').value = name;
 
             showToast('シリーズを追加しました', 'success');
         }
 
         function toggleEpisodeReorder() {
-            const reorder = $('episodeReorder');
+            const reorder = document.getElementById('episodeReorder');
             const isActive = reorder.classList.toggle('active');
 
             if (isActive && APP_STATE.novel.currentSeries) {
@@ -1743,7 +1750,7 @@
         }
 
         function renderEpisodeChips() {
-            const container = $('episodeChips');
+            const container = document.getElementById('episodeChips');
             const seriesName = APP_STATE.novel.currentSeries;
 
             if (!seriesName || !APP_STATE.novel.series[seriesName]) {
@@ -1790,39 +1797,39 @@
 
         function saveEpisodeReorder() {
             saveToStorage(STORAGE_KEYS.NOVEL_SERIES, APP_STATE.novel.series);
-            $('episodeReorder').classList.remove('active');
+            document.getElementById('episodeReorder').classList.remove('active');
             renderEpisodeSelect();
             showToast('並び順を保存しました', 'success');
         }
 
         function togglePreview() {
             APP_STATE.novel.isPreview = !APP_STATE.novel.isPreview;
-            const editor = $('novelEditor');
-            const editorWrapper = $('novelEditorWrapper');
-            const preview = $('previewMode');
+            const editor = document.getElementById('novelEditor');
+            const editorWrapper = document.getElementById('novelEditorWrapper');
+            const preview = document.getElementById('previewMode');
 
             if (APP_STATE.novel.isPreview) {
                 editorWrapper.style.display = 'none';
                 preview.style.display = 'block';
                 preview.textContent = editor.value;
-                $('previewBtn').textContent = '編集';
+                document.getElementById('previewBtn').textContent = '編集';
             } else {
                 editorWrapper.style.display = 'block';
                 preview.style.display = 'none';
-                $('previewBtn').textContent = 'プレビュー';
+                document.getElementById('previewBtn').textContent = 'プレビュー';
             }
         }
 
         // ===== Search & Replace =====
         function toggleSearchReplace(panel) {
-            const searchReplace = $(panel + 'SearchReplace');
+            const searchReplace = document.getElementById(panel + 'SearchReplace');
             searchReplace.classList.toggle('active');
         }
 
         function doSearchReplace(panel) {
-            const searchText = $(panel + 'SearchInput').value;
-            const replaceText = $(panel + 'ReplaceInput').value;
-            const editor = $(panel + 'Editor');
+            const searchText = document.getElementById(panel + 'SearchInput').value;
+            const replaceText = document.getElementById(panel + 'ReplaceInput').value;
+            const editor = document.getElementById(panel + 'Editor');
 
             if (!searchText) {
                 showToast('検索テキストを入力してください', 'error');
@@ -1854,25 +1861,25 @@
 
         // ===== Modal Functions =====
         function showModal(title, bodyHtml) {
-            $('modalTitle').textContent = title;
-            $('modalBody').innerHTML = bodyHtml;
-            $('modalOverlay').classList.add('active');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').innerHTML = bodyHtml;
+            document.getElementById('modalOverlay').classList.add('active');
         }
 
         function closeModal() {
-            $('modalOverlay').classList.remove('active');
+            document.getElementById('modalOverlay').classList.remove('active');
         }
 
         // ===== History Panel =====
         function openHistoryPanel() {
             renderHistoryPanel();
-            $('historyPanel').classList.add('active');
-            $('historyOverlay').classList.add('active');
+            document.getElementById('historyPanel').classList.add('active');
+            document.getElementById('historyOverlay').classList.add('active');
         }
 
         function closeHistoryPanel() {
-            $('historyPanel').classList.remove('active');
-            $('historyOverlay').classList.remove('active');
+            document.getElementById('historyPanel').classList.remove('active');
+            document.getElementById('historyOverlay').classList.remove('active');
         }
 
         // ===== Theme Toggle =====
@@ -1891,217 +1898,124 @@
         // ===== Export Functions =====
         // ===== I/O Menu =====
         function toggleIOMenu() {
-            const menu = $('ioMenu');
-            const overlay = $('ioMenuOverlay');
+            const menu = document.getElementById('ioMenu');
+            const overlay = document.getElementById('ioMenuOverlay');
             const isActive = menu.classList.toggle('active');
             overlay.classList.toggle('active', isActive);
         }
-
         function closeIOMenu() {
-            $('ioMenu').classList.remove('active');
-            $('ioMenuOverlay').classList.remove('active');
+            document.getElementById('ioMenu').classList.remove('active');
+            document.getElementById('ioMenuOverlay').classList.remove('active');
         }
 
-        // ===== Export Functions =====
         async function exportToZip(scope) {
             if (typeof JSZip === 'undefined') { showToast('ZIP機能は外部で開いてください', 'error'); closeIOMenu(); return; }
             scope = scope || 'all';
             const zip = new JSZip();
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-
             if (scope === 'all' || scope === 'nai') {
                 const naiFolder = zip.folder('NAI_Prompts');
                 APP_STATE.nai.tabs.forEach(tab => {
-                    if (tab.content) {
-                        naiFolder.file(tab.name + '.txt', tab.content);
-                    }
+                    if (tab.content) naiFolder.file(tab.name + '.txt', tab.content);
                 });
-                // Export buttons as JSON metadata
                 const buttonsData = {};
                 APP_STATE.nai.tabs.forEach(tab => {
-                    const tabButtons = APP_STATE.nai.buttons[tab.id];
-                    if (tabButtons && tabButtons.length > 0) {
-                        buttonsData[tab.name] = tabButtons;
-                    }
+                    const b = APP_STATE.nai.buttons[tab.id];
+                    if (b && b.length) buttonsData[tab.name] = b;
                 });
-                if (Object.keys(buttonsData).length > 0) {
-                    naiFolder.file('_buttons.json', JSON.stringify(buttonsData, null, 2));
-                }
+                if (Object.keys(buttonsData).length) naiFolder.file('_buttons.json', JSON.stringify(buttonsData, null, 2));
             }
-
             if (scope === 'all' || scope === 'novel') {
                 const novelFolder = zip.folder('Novels');
-                Object.entries(APP_STATE.novel.series).forEach(([seriesName, episodes]) => {
-                    const seriesFolder = novelFolder.folder(seriesName);
-                    episodes.forEach((content, index) => {
-                        seriesFolder.file('第' + (index + 1) + '話.txt', content);
-                    });
+                Object.entries(APP_STATE.novel.series).forEach(([name, eps]) => {
+                    const sf = novelFolder.folder(name);
+                    eps.forEach((c, i) => sf.file('第' + (i+1) + '話.txt', c));
                 });
             }
-
-            const scopeLabel = scope === 'nai' ? 'NAI' : scope === 'novel' ? 'Novel' : 'NAI_Novel';
+            const label = scope === 'nai' ? 'NAI' : scope === 'novel' ? 'Novel' : 'NAI_Novel';
             const blob = await zip.generateAsync({ type: 'blob' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
-            a.download = scopeLabel + '_Export_' + timestamp + '.zip';
-            a.click();
+            a.href = url; a.download = label + '_Export_' + timestamp + '.zip'; a.click();
             URL.revokeObjectURL(url);
-
             showToast('ZIPファイルを出力しました', 'success');
             closeIOMenu();
         }
 
-        // ===== Import Functions =====
         async function importFromZip(file) {
             if (typeof JSZip === 'undefined') { showToast('ZIP機能は外部で開いてください', 'error'); return; }
             try {
                 const zip = await JSZip.loadAsync(file);
-                const hasNai = Object.keys(zip.files).some(function(f) { return f.startsWith('NAI_Prompts/'); });
-                const hasNovel = Object.keys(zip.files).some(function(f) { return f.startsWith('Novels/'); });
-
-                if (!hasNai && !hasNovel) {
-                    showToast('認識できるデータが見つかりません', 'error');
-                    return;
-                }
-
-                let scopeOptions = '';
-                if (hasNai && hasNovel) {
-                    scopeOptions = '<option value="all">全体 (NAI + Novel)</option><option value="nai">NAIのみ</option><option value="novel">Novelのみ</option>';
-                } else if (hasNai) {
-                    scopeOptions = '<option value="nai">NAI</option>';
-                } else {
-                    scopeOptions = '<option value="novel">Novel</option>';
-                }
-
-                const detected = (hasNai ? '✓ NAI' : '') + (hasNai && hasNovel ? ' / ' : '') + (hasNovel ? '✓ Novel' : '');
-
+                const hasNai = Object.keys(zip.files).some(f => f.startsWith('NAI_Prompts/'));
+                const hasNovel = Object.keys(zip.files).some(f => f.startsWith('Novels/'));
+                if (!hasNai && !hasNovel) { showToast('認識できるデータが見つかりません', 'error'); return; }
+                let scopeOpts = '';
+                if (hasNai && hasNovel) scopeOpts = '<option value="all">全体</option><option value="nai">NAIのみ</option><option value="novel">Novelのみ</option>';
+                else if (hasNai) scopeOpts = '<option value="nai">NAI</option>';
+                else scopeOpts = '<option value="novel">Novel</option>';
+                const detected = (hasNai?'✓ NAI':'') + (hasNai&&hasNovel?' / ':'') + (hasNovel?'✓ Novel':'');
                 showModal('ZIPインポート',
-                    '<p style="margin-bottom: 12px; color: var(--text-secondary); font-size: 0.85rem;">検出: ' + detected + '</p>' +
-                    '<select class="modal-input" id="importScope">' + scopeOptions + '</select>' +
-                    '<select class="modal-input" id="importMode">' +
-                    '<option value="merge">マージ（既存データに追加）</option>' +
-                    '<option value="overwrite">上書き（既存データを置換）</option>' +
-                    '</select>' +
-                    '<div class="modal-actions">' +
-                    '<button class="modal-btn cancel" onclick="closeModal()">キャンセル</button>' +
-                    '<button class="modal-btn confirm" id="confirmImport">インポート</button>' +
-                    '</div>'
+                    '<p style="margin-bottom:12px;color:var(--text-secondary);font-size:0.85rem;">検出: '+detected+'</p>'+
+                    '<select class="modal-input" id="importScope">'+scopeOpts+'</select>'+
+                    '<select class="modal-input" id="importMode"><option value="merge">マージ</option><option value="overwrite">上書き</option></select>'+
+                    '<div class="modal-actions"><button class="modal-btn cancel" onclick="closeModal()">キャンセル</button><button class="modal-btn confirm" id="confirmImport">インポート</button></div>'
                 );
-
-                $('confirmImport').addEventListener('click', async function() {
-                    const scope = $('importScope').value;
-                    const mode = $('importMode').value;
+                document.getElementById('confirmImport').addEventListener('click', async function() {
+                    const scope = document.getElementById('importScope').value;
+                    const mode = document.getElementById('importMode').value;
                     try {
-                        if ((scope === 'all' || scope === 'nai') && hasNai) {
-                            await importNaiData(zip, mode);
-                        }
-                        if ((scope === 'all' || scope === 'novel') && hasNovel) {
-                            await importNovelData(zip, mode);
-                        }
-                        closeModal();
-                        showToast('インポート完了', 'success');
-                    } catch (err) {
-                        console.error('Import error:', err);
-                        showToast('インポート中にエラーが発生しました', 'error');
-                    }
+                        if ((scope==='all'||scope==='nai') && hasNai) await importNaiData(zip, mode);
+                        if ((scope==='all'||scope==='novel') && hasNovel) await importNovelData(zip, mode);
+                        closeModal(); showToast('インポート完了', 'success');
+                    } catch(e) { console.error(e); showToast('インポートエラー', 'error'); }
                 });
-            } catch (err) {
-                console.error('ZIP read error:', err);
-                showToast('ZIPファイルの読み込みに失敗しました', 'error');
-            }
+            } catch(e) { console.error(e); showToast('ZIP読み込み失敗', 'error'); }
         }
 
         async function importNaiData(zip, mode) {
-            const naiFiles = Object.keys(zip.files).filter(function(f) {
-                return f.startsWith('NAI_Prompts/') && f.endsWith('.txt') && !f.endsWith('/');
-            });
-
-            let buttonsData = {};
-            const buttonsFile = zip.files['NAI_Prompts/_buttons.json'];
-            if (buttonsFile) {
-                try {
-                    const buttonsJson = await buttonsFile.async('string');
-                    buttonsData = JSON.parse(buttonsJson);
-                } catch (e) { console.warn('Failed to parse buttons JSON:', e); }
+            const files = Object.keys(zip.files).filter(f => f.startsWith('NAI_Prompts/') && f.endsWith('.txt') && !f.endsWith('/'));
+            let bd = {};
+            const bf = zip.files['NAI_Prompts/_buttons.json'];
+            if (bf) try { bd = JSON.parse(await bf.async('string')); } catch(e) {}
+            if (mode === 'overwrite') { APP_STATE.nai.tabs = []; APP_STATE.nai.buttons = {}; }
+            for (const fp of files) {
+                const name = fp.replace('NAI_Prompts/','').replace('.txt','');
+                if (name.startsWith('_')) continue;
+                const content = await zip.files[fp].async('string');
+                const existing = APP_STATE.nai.tabs.find(t => t.name === name);
+                if (existing) { existing.content = content; if (bd[name]) APP_STATE.nai.buttons[existing.id] = bd[name]; }
+                else { const nt = {id:generateId(),name,content}; APP_STATE.nai.tabs.push(nt); APP_STATE.nai.buttons[nt.id] = bd[name]||[]; }
             }
-
-            if (mode === 'overwrite') {
-                APP_STATE.nai.tabs = [];
-                APP_STATE.nai.buttons = {};
-            }
-
-            for (const filePath of naiFiles) {
-                const fileName = filePath.replace('NAI_Prompts/', '').replace('.txt', '');
-                if (fileName.startsWith('_')) continue;
-                const content = await zip.files[filePath].async('string');
-                const existingTab = APP_STATE.nai.tabs.find(function(t) { return t.name === fileName; });
-                if (existingTab) {
-                    existingTab.content = content;
-                    if (buttonsData[fileName]) {
-                        APP_STATE.nai.buttons[existingTab.id] = buttonsData[fileName];
-                    }
-                } else {
-                    const newTab = { id: generateId(), name: fileName, content: content };
-                    APP_STATE.nai.tabs.push(newTab);
-                    APP_STATE.nai.buttons[newTab.id] = buttonsData[fileName] || [];
-                }
-            }
-
-            if (APP_STATE.nai.tabs.length === 0) {
-                APP_STATE.nai.tabs.push({ id: generateId(), name: 'プロンプト1', content: '' });
-            }
-
+            if (!APP_STATE.nai.tabs.length) APP_STATE.nai.tabs.push({id:generateId(),name:'プロンプト1',content:''});
             APP_STATE.nai.activeTabId = APP_STATE.nai.tabs[0].id;
             saveToStorage(STORAGE_KEYS.NAI_TABS, APP_STATE.nai.tabs);
             saveToStorage(STORAGE_KEYS.NAI_BUTTONS, APP_STATE.nai.buttons);
-            renderNaiTabs();
-            renderPromptButtons();
-            loadActiveTabContent();
+            renderNaiTabs(); renderPromptButtons();
         }
 
         async function importNovelData(zip, mode) {
-            const novelFiles = Object.keys(zip.files).filter(function(f) {
-                return f.startsWith('Novels/') && f.endsWith('.txt') && !f.endsWith('/');
-            });
-
-            if (mode === 'overwrite') {
-                APP_STATE.novel.series = {};
-            }
-
-            for (const filePath of novelFiles) {
-                const parts = filePath.replace('Novels/', '').split('/');
+            const files = Object.keys(zip.files).filter(f => f.startsWith('Novels/') && f.endsWith('.txt') && !f.endsWith('/'));
+            if (mode === 'overwrite') APP_STATE.novel.series = {};
+            for (const fp of files) {
+                const parts = fp.replace('Novels/','').split('/');
                 if (parts.length < 2) continue;
-                const seriesName = parts[0];
-                const content = await zip.files[filePath].async('string');
-
-                if (!APP_STATE.novel.series[seriesName]) {
-                    APP_STATE.novel.series[seriesName] = [];
-                }
-
-                const epMatch = parts[1].match(/第(\d+)話/);
-                const epNum = epMatch ? parseInt(epMatch[1]) : APP_STATE.novel.series[seriesName].length + 1;
-                const epIndex = epNum - 1;
-
-                while (APP_STATE.novel.series[seriesName].length <= epIndex) {
-                    APP_STATE.novel.series[seriesName].push('');
-                }
-                APP_STATE.novel.series[seriesName][epIndex] = content;
+                const sn = parts[0];
+                const content = await zip.files[fp].async('string');
+                if (!APP_STATE.novel.series[sn]) APP_STATE.novel.series[sn] = [];
+                const m = parts[1].match(/第(\d+)話/);
+                const idx = (m ? parseInt(m[1]) : APP_STATE.novel.series[sn].length + 1) - 1;
+                while (APP_STATE.novel.series[sn].length <= idx) APP_STATE.novel.series[sn].push('');
+                APP_STATE.novel.series[sn][idx] = content;
             }
-
             saveToStorage(STORAGE_KEYS.NOVEL_SERIES, APP_STATE.novel.series);
-            APP_STATE.novel.currentSeries = null;
-            APP_STATE.novel.currentEpisode = null;
-            APP_STATE.novel.isEditing = false;
-            $('novelEditor').value = '';
-            renderSeriesSelect();
-            renderEpisodeSelect();
-            updateNovelCharCount();
+            APP_STATE.novel.currentSeries = null; APP_STATE.novel.currentEpisode = null; APP_STATE.novel.isEditing = false;
+            document.getElementById('novelEditor').value = '';
+            renderSeriesSelect(); renderEpisodeSelect(); updateNovelCharCount();
         }
 
         // ===== Copy Function =====
         function copyToClipboard(editorId) {
-            const editor = $(editorId);
+            const editor = document.getElementById(editorId);
             navigator.clipboard.writeText(editor.value).then(() => {
                 showToast('コピーしました', 'success');
             }).catch(() => {
@@ -2130,36 +2044,36 @@
             });
 
             // NAI Editor
-            const naiEditor = $('naiEditor');
+            const naiEditor = document.getElementById('naiEditor');
             naiEditor.addEventListener('input', () => {
                 autoResize(naiEditor);
                 updateNaiCharCount();
                 saveNaiContent();
             });
 
-            $('registerBtn').addEventListener('click', registerPromptButton);
-            $('registerInput').addEventListener('keydown', (e) => {
+            document.getElementById('registerBtn').addEventListener('click', registerPromptButton);
+            document.getElementById('registerInput').addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') registerPromptButton();
             });
-            $('registerNameInput').addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') $('registerInput').focus();
+            document.getElementById('registerNameInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') document.getElementById('registerInput').focus();
             });
-            $('deleteModeBtnNai').addEventListener('click', toggleDeleteMode);
+            document.getElementById('deleteModeBtnNai').addEventListener('click', toggleDeleteMode);
 
-            $('naiSearchBtn').addEventListener('click', () => toggleSearchReplace('nai'));
-            $('naiReplaceBtn').addEventListener('click', () => doSearchReplace('nai'));
-            $('naiCopyBtn').addEventListener('click', () => copyToClipboard('naiEditor'));
-            $('naiClearBtn').addEventListener('click', () => {
-                if (!confirm('プロンプトをクリアしますか？')) return;
-                const ed = $('naiEditor');
-                ed.value = '';
-                autoResize(ed);
-                updateNaiCharCount();
-                saveNaiContent();
+            document.getElementById('naiSearchBtn').addEventListener('click', () => toggleSearchReplace('nai'));
+            document.getElementById('naiReplaceBtn').addEventListener('click', () => doSearchReplace('nai'));
+            document.getElementById('naiCopyBtn').addEventListener('click', () => copyToClipboard('naiEditor'));
+            document.getElementById('naiClearBtn').addEventListener('click', () => {
+                if (confirm('プロンプトをクリアしますか？')) {
+                    document.getElementById('naiEditor').value = '';
+                    autoResize(document.getElementById('naiEditor'));
+                    updateNaiCharCount();
+                    saveNaiContent();
+                }
             });
 
             // Novel Editor
-            const novelEditor = $('novelEditor');
+            const novelEditor = document.getElementById('novelEditor');
             novelEditor.addEventListener('input', () => {
                 autoResize(novelEditor);
                 updateNovelCharCount();
@@ -2168,24 +2082,24 @@
                 }
             });
 
-            $('seriesSelect').addEventListener('change', (e) => {
+            document.getElementById('seriesSelect').addEventListener('change', (e) => {
                 APP_STATE.novel.currentSeries = e.target.value || null;
                 APP_STATE.novel.currentEpisode = null;
                 APP_STATE.novel.isEditing = false;
-                $('novelEditor').value = '';
+                document.getElementById('novelEditor').value = '';
                 renderEpisodeSelect();
                 updateNovelCharCount();
             });
 
-            $('episodeSelect').addEventListener('change', (e) => {
+            document.getElementById('episodeSelect').addEventListener('change', (e) => {
                 APP_STATE.novel.currentEpisode = e.target.value !== '' ? parseInt(e.target.value) : null;
                 if (APP_STATE.novel.currentEpisode !== null) {
                     loadEpisode();
                 }
             });
 
-            $('newEpisodeBtn').addEventListener('click', createNewEpisode);
-            $('editEpisodeBtn').addEventListener('click', () => {
+            document.getElementById('newEpisodeBtn').addEventListener('click', createNewEpisode);
+            document.getElementById('editEpisodeBtn').addEventListener('click', () => {
                 if (APP_STATE.novel.currentSeries && APP_STATE.novel.currentEpisode !== null) {
                     loadEpisode();
                     showToast('編集モードに入りました');
@@ -2193,49 +2107,49 @@
                     showToast('エピソードを選択してください', 'error');
                 }
             });
-            $('deleteEpisodeBtn').addEventListener('click', deleteCurrentEpisode);
-            $('newSeriesBtn').addEventListener('click', toggleSeriesManagement);
-            $('addSeriesBtn').addEventListener('click', addNewSeries);
-            $('cancelSeriesBtn').addEventListener('click', () => {
-                $('seriesManagement').classList.remove('active');
+            document.getElementById('deleteEpisodeBtn').addEventListener('click', deleteCurrentEpisode);
+            document.getElementById('newSeriesBtn').addEventListener('click', toggleSeriesManagement);
+            document.getElementById('addSeriesBtn').addEventListener('click', addNewSeries);
+            document.getElementById('cancelSeriesBtn').addEventListener('click', () => {
+                document.getElementById('seriesManagement').classList.remove('active');
             });
-            $('reorderBtn').addEventListener('click', toggleEpisodeReorder);
-            $('saveReorderBtn').addEventListener('click', saveEpisodeReorder);
-            $('cancelReorderBtn').addEventListener('click', () => {
-                $('episodeReorder').classList.remove('active');
+            document.getElementById('reorderBtn').addEventListener('click', toggleEpisodeReorder);
+            document.getElementById('saveReorderBtn').addEventListener('click', saveEpisodeReorder);
+            document.getElementById('cancelReorderBtn').addEventListener('click', () => {
+                document.getElementById('episodeReorder').classList.remove('active');
             });
-            $('lineLimitInput').addEventListener('change', () => {
-                const limit = parseInt($('lineLimitInput').value) || 50;
+            document.getElementById('lineLimitInput').addEventListener('change', () => {
+                const limit = parseInt(document.getElementById('lineLimitInput').value) || 50;
                 saveToStorage('novel_line_limit', limit);
                 updateNovelCharCount();
             });
-            $('previewBtn').addEventListener('click', togglePreview);
+            document.getElementById('previewBtn').addEventListener('click', togglePreview);
 
-            $('novelSearchBtn').addEventListener('click', () => toggleSearchReplace('novel'));
-            $('novelReplaceBtn').addEventListener('click', () => doSearchReplace('novel'));
-            $('novelCopyBtn').addEventListener('click', () => copyToClipboard('novelEditor'));
+            document.getElementById('novelSearchBtn').addEventListener('click', () => toggleSearchReplace('novel'));
+            document.getElementById('novelReplaceBtn').addEventListener('click', () => doSearchReplace('novel'));
+            document.getElementById('novelCopyBtn').addEventListener('click', () => copyToClipboard('novelEditor'));
 
             // Header buttons
-            $('historyBtn').addEventListener('click', openHistoryPanel);
-            $('closeHistory').addEventListener('click', closeHistoryPanel);
-            $('historyOverlay').addEventListener('click', closeHistoryPanel);
-            $('themeBtn').addEventListener('click', toggleTheme);
+            document.getElementById('historyBtn').addEventListener('click', openHistoryPanel);
+            document.getElementById('closeHistory').addEventListener('click', closeHistoryPanel);
+            document.getElementById('historyOverlay').addEventListener('click', closeHistoryPanel);
+            document.getElementById('themeBtn').addEventListener('click', toggleTheme);
             // I/O Menu
-            $('ioBtn').addEventListener('click', toggleIOMenu);
-            $('ioMenuOverlay').addEventListener('click', closeIOMenu);
-            ['All', 'Nai', 'Novel'].forEach(s => {
-                $('export' + s).addEventListener('click', () => exportToZip(s.toLowerCase()));
+            document.getElementById('ioBtn').addEventListener('click', toggleIOMenu);
+            document.getElementById('ioMenuOverlay').addEventListener('click', closeIOMenu);
+            ['All','Nai','Novel'].forEach(s => {
+                document.getElementById('export'+s).addEventListener('click', () => exportToZip(s.toLowerCase()));
             });
-            $('importAll').addEventListener('click', () => { closeIOMenu(); $('importFileInput').click(); });
-            $('importFileInput').addEventListener('change', e => {
+            document.getElementById('importAll').addEventListener('click', () => { closeIOMenu(); document.getElementById('importFileInput').click(); });
+            document.getElementById('importFileInput').addEventListener('change', e => {
                 const file = e.target.files[0];
                 if (file) { importFromZip(file); e.target.value = ''; }
             });
 
             // Modal
-            $('modalClose').addEventListener('click', closeModal);
-            $('modalOverlay').addEventListener('click', (e) => {
-                if (e.target === $('modalOverlay')) closeModal();
+            document.getElementById('modalClose').addEventListener('click', closeModal);
+            document.getElementById('modalOverlay').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('modalOverlay')) closeModal();
             });
         }
 
@@ -2247,8 +2161,8 @@
             initEventListeners();
 
             // Initial auto-resize
-            autoResize($('naiEditor'));
-            autoResize($('novelEditor'));
+            autoResize(document.getElementById('naiEditor'));
+            autoResize(document.getElementById('novelEditor'));
         }
 
         // Start the app
