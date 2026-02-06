@@ -244,6 +244,13 @@
             align-items: center;
             justify-content: space-between;
             margin-bottom: 10px;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .section-header-actions {
+            display: flex;
+            gap: 6px;
         }
 
         .section-title {
@@ -276,6 +283,25 @@
             background: var(--accent-nai);
             border-color: var(--accent-nai);
             color: #1c1c1e;
+        }
+
+        .prompt-button.reorder-mode {
+            border-style: dashed;
+            cursor: grab;
+        }
+
+        .prompt-button.reorder-mode:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--accent-nai);
+            color: var(--text-primary);
+        }
+
+        .prompt-button.reorder-selected {
+            background: var(--accent-nai);
+            border-color: var(--accent-nai);
+            border-style: solid;
+            color: #1c1c1e;
+            font-weight: 500;
         }
 
         /* Register Section */
@@ -945,7 +971,10 @@
             <div class="prompt-buttons-section">
                 <div class="section-header">
                     <span class="section-title">プロンプトボタン</span>
-                    <button class="toolbar-btn delete-mode-btn" id="deleteModeBtnNai">削除モード</button>
+                    <div class="section-header-actions">
+                        <button class="toolbar-btn delete-mode-btn" id="reorderModeBtnNai">入替モード</button>
+                        <button class="toolbar-btn delete-mode-btn" id="deleteModeBtnNai">削除モード</button>
+                    </div>
                 </div>
                 <div class="prompt-buttons-grid" id="promptButtonsGrid">
                     <!-- Dynamic buttons -->
@@ -1104,7 +1133,9 @@
                 activeTabId: null,
                 buttons: {},
                 history: [],
-                deleteMode: false
+                deleteMode: false,
+                reorderMode: false,
+                reorderFirst: null
             },
             novel: {
                 series: {},
@@ -1422,18 +1453,24 @@
             const container = document.getElementById('promptButtonsGrid');
             const buttons = APP_STATE.nai.buttons[APP_STATE.nai.activeTabId] || [];
             const isDeleteMode = APP_STATE.nai.deleteMode;
+            const isReorderMode = APP_STATE.nai.reorderMode;
+            const firstIdx = APP_STATE.nai.reorderFirst;
 
-            container.innerHTML = buttons.map((btn, index) => `
-                <div class="prompt-button ${isDeleteMode ? 'delete-mode' : ''}" data-index="${index}">
-                    ${btn.label}
-                </div>
-            `).join('');
+            container.innerHTML = buttons.map((btn, index) => {
+                let cls = 'prompt-button';
+                if (isDeleteMode) cls += ' delete-mode';
+                if (isReorderMode) cls += ' reorder-mode';
+                if (isReorderMode && firstIdx === index) cls += ' reorder-selected';
+                return `<div class="${cls}" data-index="${index}">${btn.label}</div>`;
+            }).join('');
 
             container.querySelectorAll('.prompt-button').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const index = parseInt(btn.dataset.index);
                     if (APP_STATE.nai.deleteMode) {
                         deletePromptButton(index);
+                    } else if (APP_STATE.nai.reorderMode) {
+                        handleReorderClick(index);
                     } else {
                         insertPromptButton(index);
                     }
@@ -1441,10 +1478,46 @@
             });
         }
 
+        function handleReorderClick(index) {
+            if (APP_STATE.nai.reorderFirst === null) {
+                APP_STATE.nai.reorderFirst = index;
+                renderPromptButtons();
+            } else {
+                const tabId = APP_STATE.nai.activeTabId;
+                const buttons = APP_STATE.nai.buttons[tabId];
+                const a = APP_STATE.nai.reorderFirst;
+                const b = index;
+                if (a !== b) {
+                    [buttons[a], buttons[b]] = [buttons[b], buttons[a]];
+                    saveToStorage(STORAGE_KEYS.NAI_BUTTONS, APP_STATE.nai.buttons);
+                    showToast('入れ替えました', 'success');
+                }
+                APP_STATE.nai.reorderFirst = null;
+                renderPromptButtons();
+            }
+        }
+
         function toggleDeleteMode() {
             APP_STATE.nai.deleteMode = !APP_STATE.nai.deleteMode;
+            if (APP_STATE.nai.deleteMode) {
+                APP_STATE.nai.reorderMode = false;
+                APP_STATE.nai.reorderFirst = null;
+                document.getElementById('reorderModeBtnNai').classList.remove('active');
+            }
             document.getElementById('deleteModeBtnNai').classList.toggle('active', APP_STATE.nai.deleteMode);
             renderNaiTabs();
+            renderPromptButtons();
+        }
+
+        function toggleReorderMode() {
+            APP_STATE.nai.reorderMode = !APP_STATE.nai.reorderMode;
+            APP_STATE.nai.reorderFirst = null;
+            if (APP_STATE.nai.reorderMode) {
+                APP_STATE.nai.deleteMode = false;
+                document.getElementById('deleteModeBtnNai').classList.remove('active');
+                renderNaiTabs();
+            }
+            document.getElementById('reorderModeBtnNai').classList.toggle('active', APP_STATE.nai.reorderMode);
             renderPromptButtons();
         }
 
@@ -2059,6 +2132,7 @@
                 if (e.key === 'Enter') document.getElementById('registerInput').focus();
             });
             document.getElementById('deleteModeBtnNai').addEventListener('click', toggleDeleteMode);
+            document.getElementById('reorderModeBtnNai').addEventListener('click', toggleReorderMode);
 
             document.getElementById('naiSearchBtn').addEventListener('click', () => toggleSearchReplace('nai'));
             document.getElementById('naiReplaceBtn').addEventListener('click', () => doSearchReplace('nai'));
