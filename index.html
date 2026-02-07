@@ -63,7 +63,7 @@
         .app-header {
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
-            padding: 12px 16px;
+            padding: 10px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -73,12 +73,10 @@
         }
 
         .app-title {
-            font-size: 1.1rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--accent-nai), var(--accent-novel));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            font-size: 0.85rem;
+            font-weight: 400;
+            color: var(--text-secondary);
+            letter-spacing: 0.08em;
         }
 
         .header-actions {
@@ -215,6 +213,19 @@
 
         .prompt-tab.delete-mode .delete-tab {
             display: block;
+        }
+
+        .prompt-tab.reorder-mode {
+            border-style: dashed;
+            cursor: grab;
+        }
+
+        .prompt-tab.reorder-selected {
+            background: var(--accent-nai);
+            border-color: var(--accent-nai);
+            border-style: solid;
+            color: #1c1c1e;
+            font-weight: 500;
         }
 
         .add-tab-btn {
@@ -1264,6 +1275,7 @@
                 deleteMode: false,
                 reorderMode: false,
                 reorderFirst: null,
+                reorderFirstTab: null,
                 charPrompts: []
             },
             novel: {
@@ -1419,40 +1431,51 @@
             const container = document.getElementById('naiPromptTabs');
             const tabs = APP_STATE.nai.tabs;
             const isDel = APP_STATE.nai.deleteMode;
+            const isReorder = APP_STATE.nai.reorderMode;
+            const firstId = APP_STATE.nai.reorderFirstTab;
 
-            container.innerHTML = tabs.map((tab) => `
-                <div class="prompt-tab ${tab.id === APP_STATE.nai.activeTabId ? 'active' : ''} ${isDel ? 'delete-mode' : ''}"
-                     data-id="${tab.id}" draggable="true">
+            container.innerHTML = tabs.map((tab) => {
+                let cls = 'prompt-tab';
+                if (tab.id === APP_STATE.nai.activeTabId) cls += ' active';
+                if (isDel) cls += ' delete-mode';
+                if (isReorder) cls += ' reorder-mode';
+                if (isReorder && firstId === tab.id) cls += ' reorder-selected';
+                return `<div class="${cls}" data-id="${tab.id}" draggable="${!isReorder}">
                     <span class="tab-name" data-id="${tab.id}">${tab.name}</span>
                     <svg class="delete-tab" data-id="${tab.id}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"/>
                         <line x1="6" y1="6" x2="18" y2="18"/>
                     </svg>
-                </div>
-            `).join('') + `<button class="add-tab-btn" id="addTabBtn">+ 追加</button>`;
+                </div>`;
+            }).join('') + `<button class="add-tab-btn" id="addTabBtn">+ 追加</button>`;
 
             container.querySelectorAll('.prompt-tab').forEach(tab => {
                 tab.addEventListener('click', (e) => {
-                    if (!e.target.classList.contains('delete-tab') && !e.target.classList.contains('tab-name-input')) {
+                    if (e.target.classList.contains('delete-tab') || e.target.classList.contains('tab-name-input')) return;
+                    if (isReorder) {
+                        handleTabReorderClick(tab.dataset.id);
+                    } else {
                         switchNaiTab(tab.dataset.id);
                     }
                 });
 
-                // Long press to edit name
-                let pressTimer = null;
-                const startPress = () => { pressTimer = setTimeout(() => { pressTimer = 'fired'; startEditTabName(tab.dataset.id); }, 500); };
-                const cancelPress = () => { if (pressTimer && pressTimer !== 'fired') clearTimeout(pressTimer); pressTimer = null; };
-                tab.addEventListener('touchstart', startPress, { passive: true });
-                tab.addEventListener('touchend', cancelPress);
-                tab.addEventListener('touchmove', cancelPress);
-                tab.addEventListener('mousedown', startPress);
-                tab.addEventListener('mouseup', cancelPress);
-                tab.addEventListener('mouseleave', cancelPress);
+                // Long press to edit name (disabled in reorder mode)
+                if (!isReorder) {
+                    let pressTimer = null;
+                    const startPress = () => { pressTimer = setTimeout(() => { pressTimer = 'fired'; startEditTabName(tab.dataset.id); }, 500); };
+                    const cancelPress = () => { if (pressTimer && pressTimer !== 'fired') clearTimeout(pressTimer); pressTimer = null; };
+                    tab.addEventListener('touchstart', startPress, { passive: true });
+                    tab.addEventListener('touchend', cancelPress);
+                    tab.addEventListener('touchmove', cancelPress);
+                    tab.addEventListener('mousedown', startPress);
+                    tab.addEventListener('mouseup', cancelPress);
+                    tab.addEventListener('mouseleave', cancelPress);
 
-                tab.addEventListener('dragstart', handleTabDragStart);
-                tab.addEventListener('dragover', handleTabDragOver);
-                tab.addEventListener('drop', handleTabDrop);
-                tab.addEventListener('dragend', handleTabDragEnd);
+                    tab.addEventListener('dragstart', handleTabDragStart);
+                    tab.addEventListener('dragover', handleTabDragOver);
+                    tab.addEventListener('drop', handleTabDrop);
+                    tab.addEventListener('dragend', handleTabDragEnd);
+                }
             });
 
             container.querySelectorAll('.delete-tab').forEach(btn => {
@@ -1463,6 +1486,24 @@
             });
 
             document.getElementById('addTabBtn').addEventListener('click', addNaiTab);
+        }
+
+        function handleTabReorderClick(tabId) {
+            if (APP_STATE.nai.reorderFirstTab === null || APP_STATE.nai.reorderFirstTab === undefined) {
+                APP_STATE.nai.reorderFirstTab = tabId;
+                renderNaiTabs();
+            } else {
+                const tabs = APP_STATE.nai.tabs;
+                const aIdx = tabs.findIndex(t => t.id === APP_STATE.nai.reorderFirstTab);
+                const bIdx = tabs.findIndex(t => t.id === tabId);
+                if (aIdx !== -1 && bIdx !== -1 && aIdx !== bIdx) {
+                    [tabs[aIdx], tabs[bIdx]] = [tabs[bIdx], tabs[aIdx]];
+                    saveToStorage(STORAGE_KEYS.NAI_TABS, APP_STATE.nai.tabs);
+                    showToast('タブを入れ替えました', 'success');
+                }
+                APP_STATE.nai.reorderFirstTab = null;
+                renderNaiTabs();
+            }
         }
 
         let draggedTab = null;
@@ -1645,12 +1686,13 @@
         function toggleReorderMode() {
             APP_STATE.nai.reorderMode = !APP_STATE.nai.reorderMode;
             APP_STATE.nai.reorderFirst = null;
+            APP_STATE.nai.reorderFirstTab = null;
             if (APP_STATE.nai.reorderMode) {
                 APP_STATE.nai.deleteMode = false;
                 document.getElementById('deleteModeBtnNai').classList.remove('active');
-                renderNaiTabs();
             }
             document.getElementById('reorderModeBtnNai').classList.toggle('active', APP_STATE.nai.reorderMode);
+            renderNaiTabs();
             renderPromptButtons();
         }
 
