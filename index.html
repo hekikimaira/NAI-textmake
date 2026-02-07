@@ -315,6 +315,41 @@
             font-weight: 500;
         }
 
+        .prompt-button.move-mode {
+            border-color: var(--accent-novel);
+            border-style: dashed;
+            cursor: pointer;
+        }
+
+        .prompt-button.move-mode:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--accent-novel);
+            color: var(--text-primary);
+        }
+
+        .prompt-button.move-selected {
+            background: var(--accent-novel);
+            border-color: var(--accent-novel);
+            border-style: solid;
+            color: white;
+            font-weight: 500;
+        }
+
+        .prompt-tab.move-target {
+            border-style: dashed;
+            border-color: var(--accent-novel);
+            cursor: pointer;
+        }
+
+        .prompt-tab.move-target:hover {
+            background: var(--accent-novel);
+            color: white;
+        }
+
+        .prompt-tab.move-target.active {
+            color: white;
+        }
+
         /* Char Prompts - stacked under main editor */
         .nai-editors-stack {
             flex: 1;
@@ -1099,6 +1134,7 @@
                 <div class="section-header">
                     <span class="section-title">プロンプトボタン</span>
                     <div class="section-header-actions">
+                        <button class="toolbar-btn delete-mode-btn" id="moveModeBtnNai">移動モード</button>
                         <button class="toolbar-btn delete-mode-btn" id="reorderModeBtnNai">入替モード</button>
                         <button class="toolbar-btn delete-mode-btn" id="deleteModeBtnNai">削除モード</button>
                     </div>
@@ -1276,6 +1312,8 @@
                 reorderMode: false,
                 reorderFirst: null,
                 reorderFirstTab: null,
+                moveMode: false,
+                moveButtonIndex: null,
                 charPrompts: []
             },
             novel: {
@@ -1432,6 +1470,8 @@
             const tabs = APP_STATE.nai.tabs;
             const isDel = APP_STATE.nai.deleteMode;
             const isReorder = APP_STATE.nai.reorderMode;
+            const isMove = APP_STATE.nai.moveMode;
+            const hasMoveSelection = isMove && APP_STATE.nai.moveButtonIndex !== null;
             const firstId = APP_STATE.nai.reorderFirstTab;
 
             container.innerHTML = tabs.map((tab) => {
@@ -1440,7 +1480,8 @@
                 if (isDel) cls += ' delete-mode';
                 if (isReorder) cls += ' reorder-mode';
                 if (isReorder && firstId === tab.id) cls += ' reorder-selected';
-                return `<div class="${cls}" data-id="${tab.id}" draggable="${!isReorder}">
+                if (hasMoveSelection && tab.id !== APP_STATE.nai.activeTabId) cls += ' move-target';
+                return `<div class="${cls}" data-id="${tab.id}" draggable="${!isReorder && !isMove}">
                     <span class="tab-name" data-id="${tab.id}">${tab.name}</span>
                     <svg class="delete-tab" data-id="${tab.id}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1454,13 +1495,15 @@
                     if (e.target.classList.contains('delete-tab') || e.target.classList.contains('tab-name-input')) return;
                     if (isReorder) {
                         handleTabReorderClick(tab.dataset.id);
+                    } else if (hasMoveSelection && tab.dataset.id !== APP_STATE.nai.activeTabId) {
+                        executeMoveButton(tab.dataset.id);
                     } else {
                         switchNaiTab(tab.dataset.id);
                     }
                 });
 
-                // Long press to edit name (disabled in reorder mode)
-                if (!isReorder) {
+                // Long press / drag disabled in reorder & move mode
+                if (!isReorder && !isMove) {
                     let pressTimer = null;
                     const startPress = () => { pressTimer = setTimeout(() => { pressTimer = 'fired'; startEditTabName(tab.dataset.id); }, 500); };
                     const cancelPress = () => { if (pressTimer && pressTimer !== 'fired') clearTimeout(pressTimer); pressTimer = null; };
@@ -1486,6 +1529,25 @@
             });
 
             document.getElementById('addTabBtn').addEventListener('click', addNaiTab);
+        }
+
+        function executeMoveButton(targetTabId) {
+            const srcTabId = APP_STATE.nai.activeTabId;
+            const idx = APP_STATE.nai.moveButtonIndex;
+            const srcButtons = APP_STATE.nai.buttons[srcTabId];
+            if (!srcButtons || idx === null || idx >= srcButtons.length) return;
+
+            const [moved] = srcButtons.splice(idx, 1);
+            if (!APP_STATE.nai.buttons[targetTabId]) APP_STATE.nai.buttons[targetTabId] = [];
+            APP_STATE.nai.buttons[targetTabId].push(moved);
+
+            saveToStorage(STORAGE_KEYS.NAI_BUTTONS, APP_STATE.nai.buttons);
+            APP_STATE.nai.moveButtonIndex = null;
+
+            const targetTab = APP_STATE.nai.tabs.find(t => t.id === targetTabId);
+            showToast('「' + moved.label + '」→ ' + (targetTab ? targetTab.name : '') + ' に移動', 'success');
+            renderPromptButtons();
+            renderNaiTabs();
         }
 
         function handleTabReorderClick(tabId) {
@@ -1628,13 +1690,17 @@
             const buttons = APP_STATE.nai.buttons[APP_STATE.nai.activeTabId] || [];
             const isDeleteMode = APP_STATE.nai.deleteMode;
             const isReorderMode = APP_STATE.nai.reorderMode;
+            const isMoveMode = APP_STATE.nai.moveMode;
             const firstIdx = APP_STATE.nai.reorderFirst;
+            const moveIdx = APP_STATE.nai.moveButtonIndex;
 
             container.innerHTML = buttons.map((btn, index) => {
                 let cls = 'prompt-button';
                 if (isDeleteMode) cls += ' delete-mode';
                 if (isReorderMode) cls += ' reorder-mode';
                 if (isReorderMode && firstIdx === index) cls += ' reorder-selected';
+                if (isMoveMode) cls += ' move-mode';
+                if (isMoveMode && moveIdx === index) cls += ' move-selected';
                 return `<div class="${cls}" data-index="${index}">${btn.label}</div>`;
             }).join('');
 
@@ -1645,11 +1711,23 @@
                         deletePromptButton(index);
                     } else if (APP_STATE.nai.reorderMode) {
                         handleReorderClick(index);
+                    } else if (APP_STATE.nai.moveMode) {
+                        handleMoveButtonSelect(index);
                     } else {
                         insertPromptButton(index);
                     }
                 });
             });
+        }
+
+        function handleMoveButtonSelect(index) {
+            if (APP_STATE.nai.moveButtonIndex === index) {
+                APP_STATE.nai.moveButtonIndex = null;
+            } else {
+                APP_STATE.nai.moveButtonIndex = index;
+            }
+            renderPromptButtons();
+            renderNaiTabs();
         }
 
         function handleReorderClick(index) {
@@ -1676,7 +1754,10 @@
             if (APP_STATE.nai.deleteMode) {
                 APP_STATE.nai.reorderMode = false;
                 APP_STATE.nai.reorderFirst = null;
+                APP_STATE.nai.moveMode = false;
+                APP_STATE.nai.moveButtonIndex = null;
                 document.getElementById('reorderModeBtnNai').classList.remove('active');
+                document.getElementById('moveModeBtnNai').classList.remove('active');
             }
             document.getElementById('deleteModeBtnNai').classList.toggle('active', APP_STATE.nai.deleteMode);
             renderNaiTabs();
@@ -1689,9 +1770,28 @@
             APP_STATE.nai.reorderFirstTab = null;
             if (APP_STATE.nai.reorderMode) {
                 APP_STATE.nai.deleteMode = false;
+                APP_STATE.nai.moveMode = false;
+                APP_STATE.nai.moveButtonIndex = null;
                 document.getElementById('deleteModeBtnNai').classList.remove('active');
+                document.getElementById('moveModeBtnNai').classList.remove('active');
             }
             document.getElementById('reorderModeBtnNai').classList.toggle('active', APP_STATE.nai.reorderMode);
+            renderNaiTabs();
+            renderPromptButtons();
+        }
+
+        function toggleMoveMode() {
+            APP_STATE.nai.moveMode = !APP_STATE.nai.moveMode;
+            APP_STATE.nai.moveButtonIndex = null;
+            if (APP_STATE.nai.moveMode) {
+                APP_STATE.nai.deleteMode = false;
+                APP_STATE.nai.reorderMode = false;
+                APP_STATE.nai.reorderFirst = null;
+                APP_STATE.nai.reorderFirstTab = null;
+                document.getElementById('deleteModeBtnNai').classList.remove('active');
+                document.getElementById('reorderModeBtnNai').classList.remove('active');
+            }
+            document.getElementById('moveModeBtnNai').classList.toggle('active', APP_STATE.nai.moveMode);
             renderNaiTabs();
             renderPromptButtons();
         }
@@ -2387,6 +2487,7 @@
             });
             document.getElementById('deleteModeBtnNai').addEventListener('click', toggleDeleteMode);
             document.getElementById('reorderModeBtnNai').addEventListener('click', toggleReorderMode);
+            document.getElementById('moveModeBtnNai').addEventListener('click', toggleMoveMode);
             document.getElementById('addCharPrompt').addEventListener('click', addCharPrompt);
             document.getElementById('removeCharPrompt').addEventListener('click', removeCharPrompt);
 
