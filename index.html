@@ -304,6 +304,106 @@
             font-weight: 500;
         }
 
+        /* Char Prompts Section */
+        .char-prompts-section {
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .char-prompts-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+        }
+
+        .char-prompts-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .char-prompt-ctrl {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            line-height: 1;
+        }
+
+        .char-prompt-ctrl:hover {
+            border-color: var(--accent-nai);
+            color: var(--accent-nai);
+        }
+
+        .char-prompt-count {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            min-width: 16px;
+            text-align: center;
+        }
+
+        .char-prompts-list {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .char-prompt-item {
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-primary);
+        }
+
+        .char-prompt-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 12px;
+            background: var(--bg-secondary);
+        }
+
+        .char-prompt-name {
+            font-size: 0.75rem;
+            color: var(--accent-nai);
+            font-weight: 500;
+        }
+
+        .char-prompt-chars {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+
+        .char-prompt-textarea {
+            width: 100%;
+            min-height: 60px;
+            max-height: 200px;
+            padding: 8px 12px;
+            background: var(--bg-primary);
+            border: none;
+            color: var(--text-primary);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-size: 0.9rem;
+            resize: none;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        .char-prompt-textarea:focus {
+            outline: none;
+            background: var(--bg-tertiary);
+        }
+
         /* Register Section */
         .register-section {
             padding: 12px;
@@ -1009,6 +1109,19 @@
                     <textarea class="editor-textarea" id="naiEditor" placeholder="プロンプトを作成..."></textarea>
                 </div>
             </div>
+
+            <div class="char-prompts-section" id="charPromptsSection">
+                <div class="char-prompts-header">
+                    <span class="section-title">キャラプロンプト</span>
+                    <div class="char-prompts-actions">
+                        <button class="char-prompt-ctrl" id="removeCharPrompt">−</button>
+                        <span class="char-prompt-count" id="charPromptCount">0</span>
+                        <button class="char-prompt-ctrl" id="addCharPrompt">＋</button>
+                    </div>
+                </div>
+                <div class="char-prompts-list" id="charPromptsList">
+                </div>
+            </div>
         </div>
 
         <!-- Novel Panel -->
@@ -1135,7 +1248,8 @@
                 history: [],
                 deleteMode: false,
                 reorderMode: false,
-                reorderFirst: null
+                reorderFirst: null,
+                charPrompts: []
             },
             novel: {
                 series: {},
@@ -1153,6 +1267,7 @@
             NAI_TABS: 'nai_editor_tabs',
             NAI_BUTTONS: 'nai_editor_buttons',
             NAI_HISTORY: 'nai_editor_history',
+            NAI_CHAR_PROMPTS: 'nai_char_prompts',
             NOVEL_SERIES: 'novel_editor_series',
             NOVEL_HISTORY: 'novel_editor_history',
             THEME: 'editor_theme'
@@ -1261,6 +1376,7 @@
             const tabs = loadFromStorage(STORAGE_KEYS.NAI_TABS, []);
             const buttons = loadFromStorage(STORAGE_KEYS.NAI_BUTTONS, {});
             const history = loadFromStorage(STORAGE_KEYS.NAI_HISTORY, []);
+            const charPrompts = loadFromStorage(STORAGE_KEYS.NAI_CHAR_PROMPTS, []);
 
             if (tabs.length === 0) {
                 tabs.push({ id: generateId(), name: 'プロンプト1', content: '' });
@@ -1270,9 +1386,11 @@
             APP_STATE.nai.buttons = buttons;
             APP_STATE.nai.history = history;
             APP_STATE.nai.activeTabId = tabs[0].id;
+            APP_STATE.nai.charPrompts = charPrompts;
 
             renderNaiTabs();
             renderPromptButtons();
+            renderCharPrompts();
             // Load saved content into editor on init
             const savedTab = APP_STATE.nai.tabs.find(t => t.id === APP_STATE.nai.activeTabId);
             if (savedTab && savedTab.content) {
@@ -1586,6 +1704,67 @@
             const editor = document.getElementById('naiEditor');
             document.getElementById('naiCharCount').textContent = `${editor.value.length}文字`;
         }
+
+        // ===== Char Prompts =====
+        function renderCharPrompts() {
+            const list = document.getElementById('charPromptsList');
+            const prompts = APP_STATE.nai.charPrompts;
+            document.getElementById('charPromptCount').textContent = prompts.length;
+
+            list.innerHTML = '';
+            prompts.forEach((text, i) => {
+                const item = document.createElement('div');
+                item.className = 'char-prompt-item';
+
+                const label = document.createElement('div');
+                label.className = 'char-prompt-label';
+                const name = document.createElement('span');
+                name.className = 'char-prompt-name';
+                name.textContent = 'キャラ ' + (i + 1);
+                const chars = document.createElement('span');
+                chars.className = 'char-prompt-chars';
+                chars.textContent = text.length + '文字';
+                label.appendChild(name);
+                label.appendChild(chars);
+
+                const ta = document.createElement('textarea');
+                ta.className = 'char-prompt-textarea';
+                ta.placeholder = 'キャラ' + (i + 1) + 'のプロンプト...';
+                ta.value = text;
+                ta.addEventListener('input', () => {
+                    ta.style.height = 'auto';
+                    ta.style.height = ta.scrollHeight + 'px';
+                    chars.textContent = ta.value.length + '文字';
+                    APP_STATE.nai.charPrompts[i] = ta.value;
+                    debouncedSaveCharPrompts();
+                });
+                // Auto-resize on render
+                setTimeout(() => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }, 0);
+
+                item.appendChild(label);
+                item.appendChild(ta);
+                list.appendChild(item);
+            });
+        }
+
+        function addCharPrompt() {
+            APP_STATE.nai.charPrompts.push('');
+            saveToStorage(STORAGE_KEYS.NAI_CHAR_PROMPTS, APP_STATE.nai.charPrompts);
+            renderCharPrompts();
+        }
+
+        function removeCharPrompt() {
+            if (APP_STATE.nai.charPrompts.length === 0) return;
+            const last = APP_STATE.nai.charPrompts[APP_STATE.nai.charPrompts.length - 1];
+            if (last && !confirm('キャラ ' + APP_STATE.nai.charPrompts.length + ' を削除しますか？')) return;
+            APP_STATE.nai.charPrompts.pop();
+            saveToStorage(STORAGE_KEYS.NAI_CHAR_PROMPTS, APP_STATE.nai.charPrompts);
+            renderCharPrompts();
+        }
+
+        const debouncedSaveCharPrompts = debounce(() => {
+            saveToStorage(STORAGE_KEYS.NAI_CHAR_PROMPTS, APP_STATE.nai.charPrompts);
+        }, 500);
 
         const saveNaiContent = debounce(() => {
             const tab = APP_STATE.nai.tabs.find(t => t.id === APP_STATE.nai.activeTabId);
@@ -1997,6 +2176,13 @@
                     if (b && b.length) buttonsData[tab.name] = b;
                 });
                 if (Object.keys(buttonsData).length) naiFolder.file('_buttons.json', JSON.stringify(buttonsData, null, 2));
+                // Char prompts
+                if (APP_STATE.nai.charPrompts.length) {
+                    const cpFolder = naiFolder.folder('CharPrompts');
+                    APP_STATE.nai.charPrompts.forEach((text, i) => {
+                        cpFolder.file('キャラ' + (i+1) + '.txt', text);
+                    });
+                }
             }
             if (scope === 'all' || scope === 'novel') {
                 const novelFolder = zip.folder('Novels');
@@ -2046,7 +2232,7 @@
         }
 
         async function importNaiData(zip, mode) {
-            const files = Object.keys(zip.files).filter(f => f.startsWith('NAI_Prompts/') && f.endsWith('.txt') && !f.endsWith('/'));
+            const files = Object.keys(zip.files).filter(f => f.startsWith('NAI_Prompts/') && f.endsWith('.txt') && !f.endsWith('/') && !f.includes('CharPrompts/'));
             let bd = {};
             const bf = zip.files['NAI_Prompts/_buttons.json'];
             if (bf) try { bd = JSON.parse(await bf.async('string')); } catch(e) {}
@@ -2063,7 +2249,18 @@
             APP_STATE.nai.activeTabId = APP_STATE.nai.tabs[0].id;
             saveToStorage(STORAGE_KEYS.NAI_TABS, APP_STATE.nai.tabs);
             saveToStorage(STORAGE_KEYS.NAI_BUTTONS, APP_STATE.nai.buttons);
-            renderNaiTabs(); renderPromptButtons();
+            // Import char prompts
+            const cpFiles = Object.keys(zip.files).filter(f => f.startsWith('NAI_Prompts/CharPrompts/') && f.endsWith('.txt') && !f.endsWith('/'));
+            if (cpFiles.length) {
+                if (mode === 'overwrite') APP_STATE.nai.charPrompts = [];
+                const sorted = cpFiles.sort();
+                for (const fp of sorted) {
+                    const content = await zip.files[fp].async('string');
+                    APP_STATE.nai.charPrompts.push(content);
+                }
+                saveToStorage(STORAGE_KEYS.NAI_CHAR_PROMPTS, APP_STATE.nai.charPrompts);
+            }
+            renderNaiTabs(); renderPromptButtons(); renderCharPrompts();
         }
 
         async function importNovelData(zip, mode) {
@@ -2133,6 +2330,8 @@
             });
             document.getElementById('deleteModeBtnNai').addEventListener('click', toggleDeleteMode);
             document.getElementById('reorderModeBtnNai').addEventListener('click', toggleReorderMode);
+            document.getElementById('addCharPrompt').addEventListener('click', addCharPrompt);
+            document.getElementById('removeCharPrompt').addEventListener('click', removeCharPrompt);
 
             document.getElementById('naiSearchBtn').addEventListener('click', () => toggleSearchReplace('nai'));
             document.getElementById('naiReplaceBtn').addEventListener('click', () => doSearchReplace('nai'));
