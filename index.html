@@ -1823,29 +1823,41 @@
             showToast('ボタンを登録しました', 'success');
         }
 
+        // Track last focused editor for prompt button insertion
+        let lastFocusedEditor = null;
+
         function insertPromptButton(index) {
             const buttons = APP_STATE.nai.buttons[APP_STATE.nai.activeTabId];
             if (buttons && buttons[index]) {
-                const editor = document.getElementById('naiEditor');
+                const editor = lastFocusedEditor || document.getElementById('naiEditor');
                 const text = buttons[index].text;
 
-                // Insert at cursor or append
                 const start = editor.selectionStart;
                 const end = editor.selectionEnd;
                 const currentValue = editor.value;
 
                 if (start === end && start === currentValue.length) {
-                    // At end, just append
                     editor.value = currentValue + (currentValue && !currentValue.endsWith('\n') && !currentValue.endsWith(',') ? ', ' : '') + text;
                 } else {
-                    // Insert at cursor
                     editor.value = currentValue.substring(0, start) + text + currentValue.substring(end);
                     editor.selectionStart = editor.selectionEnd = start + text.length;
                 }
 
                 autoResize(editor);
-                updateNaiCharCount();
-                saveNaiContent();
+                // Save to correct storage
+                if (editor.id === 'naiEditor') {
+                    updateNaiCharCount();
+                    saveNaiContent();
+                } else {
+                    // char prompt textarea
+                    const idx = editor.dataset.charIndex;
+                    if (idx !== undefined) {
+                        APP_STATE.nai.charPrompts[parseInt(idx)] = editor.value;
+                        debouncedSaveCharPrompts();
+                        const chars = editor.parentElement.querySelector('.char-prompt-chars');
+                        if (chars) chars.textContent = editor.value.length + '文字';
+                    }
+                }
             }
         }
 
@@ -1888,6 +1900,8 @@
                 ta.className = 'char-prompt-textarea';
                 ta.placeholder = 'キャラ' + (i + 1) + 'のプロンプト...';
                 ta.value = text;
+                ta.dataset.charIndex = i;
+                ta.addEventListener('focus', () => { lastFocusedEditor = ta; });
                 ta.addEventListener('input', () => {
                     ta.style.height = 'auto';
                     ta.style.height = ta.scrollHeight + 'px';
@@ -2006,6 +2020,26 @@
         }
 
         const debouncedSaveNovel = debounce(saveNovelContent, 500);
+
+        function autoCreateNovelEntry() {
+            const now = new Date();
+            const ts = now.getFullYear() + '/' +
+                String(now.getMonth()+1).padStart(2,'0') + '/' +
+                String(now.getDate()).padStart(2,'0') + ' ' +
+                String(now.getHours()).padStart(2,'0') + ':' +
+                String(now.getMinutes()).padStart(2,'0');
+            const seriesName = '自動保存 ' + ts;
+            APP_STATE.novel.series[seriesName] = [''];
+            APP_STATE.novel.currentSeries = seriesName;
+            APP_STATE.novel.currentEpisode = 0;
+            APP_STATE.novel.isEditing = true;
+            saveToStorage(STORAGE_KEYS.NOVEL_SERIES, APP_STATE.novel.series);
+            renderSeriesSelect();
+            document.getElementById('seriesSelect').value = seriesName;
+            renderEpisodeSelect();
+            document.getElementById('episodeSelect').value = '0';
+            showToast('「' + seriesName + '」を作成しました', 'success');
+        }
 
         function updateNovelCharCount() {
             const editor = document.getElementById('novelEditor');
@@ -2421,23 +2455,54 @@
         }
 
         async function importNovelData(zip, mode) {
-            const files = Object.keys(zip.files).filter(f => f.startsWith('Novels/') && f.endsWith('.txt') && !f.endsWith('/'));
+            const files = Object.keys(zip.files).filter(f => f.startsWith('Novels/') && !zip.files[f].dir);
             if (mode === 'overwrite') APP_STATE.novel.series = {};
+            let importCount = 0;
             for (const fp of files) {
                 const parts = fp.replace('Novels/','').split('/');
                 if (parts.length < 2) continue;
                 const sn = parts[0];
+                const fileName = parts[parts.length - 1];
+                if (!fileName.endsWith('.txt')) continue;
                 const content = await zip.files[fp].async('string');
                 if (!APP_STATE.novel.series[sn]) APP_STATE.novel.series[sn] = [];
-                const m = parts[1].match(/第(\d+)話/);
+                const m = fileName.match(/第(\d+)話/);
                 const idx = (m ? parseInt(m[1]) : APP_STATE.novel.series[sn].length + 1) - 1;
                 while (APP_STATE.novel.series[sn].length <= idx) APP_STATE.novel.series[sn].push('');
                 APP_STATE.novel.series[sn][idx] = content;
+                importCount++;
             }
             saveToStorage(STORAGE_KEYS.NOVEL_SERIES, APP_STATE.novel.series);
-            APP_STATE.novel.currentSeries = null; APP_STATE.novel.currentEpisode = null; APP_STATE.novel.isEditing = false;
-            document.getElementById('novelEditor').value = '';
-            renderSeriesSelect(); renderEpisodeSelect(); updateNovelCharCount();
+            APP_STATE.novel.isEditing = false;
+            APP_STATE.novel.isPreview = false;
+            renderSeriesSelect();
+            // Auto-select first series and episode
+            const names = Object.keys(APP_STATE.novel.series).sort();
+            if (names.length) {
+                APP_STATE.novel.currentSeries = names[0];
+                document.getElementById('seriesSelect').value = names[0];
+                renderEpisodeSelect();
+                const eps = APP_STATE.novel.series[names[0]];
+                if (eps && eps.length) {
+                    APP_STATE.novel.currentEpisode = 0;
+                    document.getElementById('episodeSelect').value = '0';
+                    APP_STATE.novel.isEditing = true;
+                    document.getElementById('novelEditor').value = eps[0];
+                    autoResize(document.getElementById('novelEditor'));
+                } else {
+                    APP_STATE.novel.currentEpisode = null;
+                    document.getElementById('novelEditor').value = '';
+                }
+            } else {
+                APP_STATE.novel.currentSeries = null;
+                APP_STATE.novel.currentEpisode = null;
+                document.getElementById('novelEditor').value = '';
+                renderEpisodeSelect();
+            }
+            updateNovelCharCount();
+            if (importCount === 0) {
+                showToast('Novelデータが見つかりませんでした', 'error');
+            }
         }
 
         // ===== Copy Function =====
@@ -2472,6 +2537,7 @@
 
             // NAI Editor
             const naiEditor = document.getElementById('naiEditor');
+            naiEditor.addEventListener('focus', () => { lastFocusedEditor = naiEditor; });
             naiEditor.addEventListener('input', () => {
                 autoResize(naiEditor);
                 updateNaiCharCount();
@@ -2509,6 +2575,9 @@
                 autoResize(novelEditor);
                 updateNovelCharCount();
                 if (APP_STATE.novel.isEditing) {
+                    debouncedSaveNovel();
+                } else if (novelEditor.value.trim()) {
+                    autoCreateNovelEntry();
                     debouncedSaveNovel();
                 }
             });
