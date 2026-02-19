@@ -2848,7 +2848,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-        import { getAuth, signInWithRedirect, getRedirectResult, signOut, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+        import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -3056,18 +3056,35 @@
                     await signOut(auth);
                 }
             } else {
+                // Try popup first, fall back to redirect
                 try {
-                    fbDebug('Starting signInWithRedirect...');
-                    await signInWithRedirect(auth, provider);
-                } catch (e) {
-                    fbDebug('signInWithRedirect error: ' + e.code + ' - ' + e.message, 'error');
-                    console.error('Auth error:', e);
-                    window.showToast('ログインに失敗しました', 'error');
+                    fbDebug('Trying signInWithPopup...');
+                    const result = await signInWithPopup(auth, provider);
+                    fbDebug('Popup success: ' + result.user.email);
+                } catch (popupError) {
+                    fbDebug('Popup failed: ' + popupError.code + ' - ' + popupError.message, 'warn');
+                    if (popupError.code === 'auth/popup-blocked' ||
+                        popupError.code === 'auth/popup-closed-by-user' ||
+                        popupError.code === 'auth/cancelled-popup-request') {
+                        // Don't fallback for user-initiated cancellations
+                        if (popupError.code === 'auth/popup-blocked') {
+                            fbDebug('Falling back to redirect...');
+                            try {
+                                await signInWithRedirect(auth, provider);
+                            } catch (redirectError) {
+                                fbDebug('Redirect also failed: ' + redirectError.code, 'error');
+                                window.showToast('ログインに失敗しました', 'error');
+                            }
+                        }
+                    } else {
+                        fbDebug('Auth error: ' + popupError.code, 'error');
+                        window.showToast('ログインに失敗しました', 'error');
+                    }
                 }
             }
         });
 
-        // Handle redirect result on page load
+        // Handle redirect result on page load (for fallback case)
         fbDebug('Checking getRedirectResult...');
         getRedirectResult(auth).then((result) => {
             if (result && result.user) {
@@ -3079,7 +3096,6 @@
             fbDebug('getRedirectResult error: ' + e.code + ' - ' + e.message, 'error');
             if (e.code !== 'auth/redirect-cancelled-by-user') {
                 console.error('Redirect auth error:', e);
-                window.showToast('ログインに失敗しました', 'error');
             }
         });
 
