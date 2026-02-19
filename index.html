@@ -2758,11 +2758,12 @@
 
         function activateDebugMode() {
             debugMode = true;
+            localStorage.setItem('_debug_mode', '1');
             document.getElementById('debugPanel').classList.add('active');
             debugLog('=== Debug Mode Activated ===');
             debugLog('User Agent: ' + navigator.userAgent);
             debugLog('Display Mode: ' + (window.matchMedia('(display-mode: standalone)').matches ? 'PWA Standalone' : 'Browser'));
-            debugLog('localStorage keys: ' + Object.keys(localStorage).join(', '));
+            debugLog('localStorage keys: ' + Object.keys(localStorage).filter(k => !k.startsWith('_debug')).join(', '));
 
             // Check Firebase state
             debugLog('Firebase sync hook: ' + (window._firebaseSyncSave ? 'ACTIVE' : 'NOT SET'), window._firebaseSyncSave ? 'info' : 'warn');
@@ -2787,15 +2788,28 @@
             showToast('🔧 Debug Mode ON', 'success');
         }
 
+        // Auto-restore debug mode after redirect
+        if (localStorage.getItem('_debug_mode') === '1') {
+            // Delay slightly to ensure DOM is ready
+            setTimeout(() => activateDebugMode(), 100);
+        }
+
         function checkDebugCode(editorValue) {
-            if (!debugMode && editorValue.includes(DEBUG_CODE)) {
-                // Remove the code from the editor
+            if (editorValue.includes(DEBUG_CODE)) {
                 const editor = document.getElementById('naiEditor');
                 editor.value = editorValue.replace(DEBUG_CODE, '');
                 autoResize(editor);
                 updateNaiCharCount();
                 saveNaiContent();
-                activateDebugMode();
+                if (!debugMode) {
+                    activateDebugMode();
+                } else {
+                    // Second time = deactivate
+                    debugMode = false;
+                    localStorage.removeItem('_debug_mode');
+                    document.getElementById('debugPanel').classList.remove('active');
+                    showToast('🔧 Debug Mode OFF');
+                }
                 return true;
             }
             return false;
