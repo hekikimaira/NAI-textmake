@@ -1090,6 +1090,34 @@
         .io-menu-item:hover { background: var(--bg-tertiary); }
         .hidden-input { display: none; }
 
+        /* Auth UI */
+        .auth-btn {
+            padding: 6px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .auth-btn:hover { background: var(--border-color); }
+        .auth-btn.signed-in { border-color: var(--success); }
+        .auth-btn .auth-avatar {
+            width: 22px; height: 22px; border-radius: 50%;
+        }
+        .sync-indicator {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--text-secondary);
+            flex-shrink: 0;
+        }
+        .sync-indicator.synced { background: var(--success); }
+        .sync-indicator.syncing { background: var(--warning); animation: pulse 1s infinite; }
+        .sync-indicator.error { background: var(--danger); }
     </style>
 </head>
 <body>
@@ -1097,6 +1125,10 @@
         <header class="app-header">
             <h1 class="app-title">NAI & Novel Editor</h1>
             <div class="header-actions">
+                <button class="auth-btn" id="authBtn" title="ログイン">
+                    <span class="sync-indicator" id="syncIndicator"></span>
+                    <span id="authLabel">ログイン</span>
+                </button>
                 <button class="icon-btn" id="historyBtn" title="履歴">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="10"/>
@@ -1373,6 +1405,10 @@
                 localStorage.setItem(key, JSON.stringify(data));
             } catch (e) {
                 console.error('Storage save error:', e);
+            }
+            // Hook for Firebase sync (set by module script)
+            if (window._firebaseSyncSave) {
+                window._firebaseSyncSave(key, data);
             }
         }
 
@@ -2653,6 +2689,17 @@
             });
         }
 
+        // ===== Expose globals for Firebase module =====
+        window.APP_STATE = APP_STATE;
+        window.renderNaiTabs = renderNaiTabs;
+        window.renderPromptButtons = renderPromptButtons;
+        window.renderCharPrompts = renderCharPrompts;
+        window.renderSeriesSelect = renderSeriesSelect;
+        window.autoResize = autoResize;
+        window.updateNaiCharCount = updateNaiCharCount;
+        window.updateNovelCharCount = updateNovelCharCount;
+        window.showToast = showToast;
+
         // ===== Initialize =====
         function init() {
             loadTheme();
@@ -2669,5 +2716,236 @@
         document.addEventListener('DOMContentLoaded', init);
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+        import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAzPs94i3mk9dKvFpdTByA4Crq6BjYKmGU",
+            authDomain: "naimake.firebaseapp.com",
+            projectId: "naimake",
+            storageBucket: "naimake.firebasestorage.app",
+            messagingSenderId: "720256882916",
+            appId: "1:720256882916:web:299165045e95535f43f4f1",
+            measurementId: "G-7F4BZVQLQ3"
+        };
+
+        const fbApp = initializeApp(firebaseConfig);
+        const auth = getAuth(fbApp);
+        const db = getFirestore(fbApp);
+        const provider = new GoogleAuthProvider();
+
+        // ===== Sync State =====
+        let currentUser = null;
+        let unsubscribers = [];
+        let isSyncingFromRemote = false; // prevent save loops
+
+        function setSyncStatus(status) {
+            const el = document.getElementById('syncIndicator');
+            el.className = 'sync-indicator' + (status ? ' ' + status : '');
+        }
+
+        // ===== Firestore Save/Load =====
+        const FIRESTORE_KEYS = {
+            'nai_editor_tabs': 'nai_tabs',
+            'nai_editor_buttons': 'nai_buttons',
+            'nai_editor_history': 'nai_history',
+            'nai_char_prompts': 'nai_char_prompts',
+            'novel_editor_series': 'novel_series',
+            'novel_editor_history': 'novel_history',
+            'editor_theme': 'theme',
+            'novel_line_limit': 'novel_line_limit'
+        };
+
+        async function saveToFirestore(key, data) {
+            if (!currentUser || isSyncingFromRemote) return;
+            const fsKey = FIRESTORE_KEYS[key] || key;
+            try {
+                setSyncStatus('syncing');
+                await setDoc(doc(db, 'users', currentUser.uid, 'data', fsKey), {
+                    value: JSON.stringify(data),
+                    updatedAt: new Date().toISOString()
+                });
+                setSyncStatus('synced');
+            } catch (e) {
+                console.error('Firestore save error:', e);
+                setSyncStatus('error');
+            }
+        }
+
+        // Debounced firestore save to batch rapid writes
+        const firestoreSaveTimers = {};
+        function debouncedFirestoreSave(key, data, wait = 1000) {
+            if (firestoreSaveTimers[key]) clearTimeout(firestoreSaveTimers[key]);
+            firestoreSaveTimers[key] = setTimeout(() => saveToFirestore(key, data), wait);
+        }
+
+        // ===== Hook into saveToStorage =====
+        window._firebaseSyncSave = function(key, data) {
+            debouncedFirestoreSave(key, data);
+        };
+
+        // ===== Apply remote data to local state =====
+        function applyRemoteData(key, data) {
+            isSyncingFromRemote = true;
+            const APP_STATE = window.APP_STATE;
+            try {
+                localStorage.setItem(key, JSON.stringify(data));
+
+                switch(key) {
+                    case 'nai_editor_tabs':
+                        APP_STATE.nai.tabs = data;
+                        if (!APP_STATE.nai.tabs.find(t => t.id === APP_STATE.nai.activeTabId)) {
+                            APP_STATE.nai.activeTabId = APP_STATE.nai.tabs[0]?.id || null;
+                        }
+                        window.renderNaiTabs();
+                        const activeTab = APP_STATE.nai.tabs.find(t => t.id === APP_STATE.nai.activeTabId);
+                        if (activeTab) {
+                            document.getElementById('naiEditor').value = activeTab.content || '';
+                            window.autoResize(document.getElementById('naiEditor'));
+                            window.updateNaiCharCount();
+                        }
+                        break;
+                    case 'nai_editor_buttons':
+                        APP_STATE.nai.buttons = data;
+                        window.renderPromptButtons();
+                        break;
+                    case 'nai_editor_history':
+                        APP_STATE.nai.history = data;
+                        break;
+                    case 'nai_char_prompts':
+                        APP_STATE.nai.charPrompts = data;
+                        window.renderCharPrompts();
+                        break;
+                    case 'novel_editor_series':
+                        APP_STATE.novel.series = data;
+                        window.renderSeriesSelect();
+                        if (APP_STATE.novel.currentSeries && APP_STATE.novel.currentEpisode !== null) {
+                            const ep = data[APP_STATE.novel.currentSeries]?.[APP_STATE.novel.currentEpisode];
+                            if (ep !== undefined) {
+                                document.getElementById('novelEditor').value = ep;
+                                window.autoResize(document.getElementById('novelEditor'));
+                                window.updateNovelCharCount();
+                            }
+                        }
+                        break;
+                    case 'novel_editor_history':
+                        APP_STATE.novel.history = data;
+                        break;
+                    case 'editor_theme':
+                        APP_STATE.theme = data;
+                        document.documentElement.setAttribute('data-theme', data);
+                        break;
+                    case 'novel_line_limit':
+                        document.getElementById('lineLimitInput').value = data;
+                        window.updateNovelCharCount();
+                        break;
+                }
+            } finally {
+                isSyncingFromRemote = false;
+            }
+        }
+
+        // ===== Start listening for realtime updates =====
+        function startRealtimeSync() {
+            if (!currentUser) return;
+            // Clean up previous listeners
+            unsubscribers.forEach(fn => fn());
+            unsubscribers = [];
+
+            Object.entries(FIRESTORE_KEYS).forEach(([localKey, fsKey]) => {
+                const unsub = onSnapshot(doc(db, 'users', currentUser.uid, 'data', fsKey), (snap) => {
+                    if (!snap.exists()) return;
+                    try {
+                        const remoteData = JSON.parse(snap.data().value);
+                        const localRaw = localStorage.getItem(localKey);
+                        const localData = localRaw ? JSON.parse(localRaw) : null;
+
+                        // Only apply if remote data is different
+                        if (JSON.stringify(remoteData) !== JSON.stringify(localData)) {
+                            applyRemoteData(localKey, remoteData);
+                        }
+                        setSyncStatus('synced');
+                    } catch (e) {
+                        console.error('Snapshot parse error:', e);
+                    }
+                }, (error) => {
+                    console.error('Snapshot error:', error);
+                    setSyncStatus('error');
+                });
+                unsubscribers.push(unsub);
+            });
+        }
+
+        // ===== Migrate local data to Firestore on first login =====
+        async function migrateLocalToFirestore() {
+            setSyncStatus('syncing');
+            for (const [localKey, fsKey] of Object.entries(FIRESTORE_KEYS)) {
+                const localRaw = localStorage.getItem(localKey);
+                if (!localRaw) continue;
+
+                try {
+                    // Check if Firestore already has data for this key
+                    const snap = await getDoc(doc(db, 'users', currentUser.uid, 'data', fsKey));
+                    if (!snap.exists()) {
+                        // Firestore is empty, push local data up
+                        const data = JSON.parse(localRaw);
+                        await setDoc(doc(db, 'users', currentUser.uid, 'data', fsKey), {
+                            value: localRaw,
+                            updatedAt: new Date().toISOString()
+                        });
+                    }
+                } catch (e) {
+                    console.error('Migration error for', localKey, e);
+                }
+            }
+            setSyncStatus('synced');
+        }
+
+        // ===== Auth UI =====
+        const authBtn = document.getElementById('authBtn');
+        const authLabel = document.getElementById('authLabel');
+
+        authBtn.addEventListener('click', async () => {
+            if (currentUser) {
+                if (confirm('ログアウトしますか？')) {
+                    await signOut(auth);
+                }
+            } else {
+                try {
+                    await signInWithPopup(auth, provider);
+                } catch (e) {
+                    if (e.code !== 'auth/popup-closed-by-user') {
+                        console.error('Auth error:', e);
+                        window.showToast('ログインに失敗しました', 'error');
+                    }
+                }
+            }
+        });
+
+        onAuthStateChanged(auth, async (user) => {
+            currentUser = user;
+            if (user) {
+                authBtn.classList.add('signed-in');
+                if (user.photoURL) {
+                    authLabel.innerHTML = `<img class="auth-avatar" src="${user.photoURL}" alt="">`;
+                } else {
+                    authLabel.textContent = user.displayName || 'ログイン中';
+                }
+                // Migrate existing local data, then start sync
+                await migrateLocalToFirestore();
+                startRealtimeSync();
+                window.showToast('同期開始', 'success');
+            } else {
+                authBtn.classList.remove('signed-in');
+                authLabel.textContent = 'ログイン';
+                setSyncStatus('');
+                // Stop listeners
+                unsubscribers.forEach(fn => fn());
+                unsubscribers = [];
+            }
+        });
+    </script>
 </body>
 </html>
