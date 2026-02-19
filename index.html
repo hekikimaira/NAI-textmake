@@ -2718,7 +2718,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-        import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+        import { getAuth, signInWithRedirect, getRedirectResult, signOut, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -2914,13 +2914,19 @@
                 }
             } else {
                 try {
-                    await signInWithPopup(auth, provider);
+                    await signInWithRedirect(auth, provider);
                 } catch (e) {
-                    if (e.code !== 'auth/popup-closed-by-user') {
-                        console.error('Auth error:', e);
-                        window.showToast('ログインに失敗しました', 'error');
-                    }
+                    console.error('Auth error:', e);
+                    window.showToast('ログインに失敗しました', 'error');
                 }
+            }
+        });
+
+        // Handle redirect result on page load
+        getRedirectResult(auth).catch((e) => {
+            if (e.code !== 'auth/redirect-cancelled-by-user') {
+                console.error('Redirect auth error:', e);
+                window.showToast('ログインに失敗しました', 'error');
             }
         });
 
